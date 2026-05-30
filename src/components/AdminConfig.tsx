@@ -1,8 +1,72 @@
 import React, { useState } from 'react';
 import { BarberSettings } from '../types';
 import { dbStore } from '../dbStore';
-import { Settings, HelpCircle, Shield, RotateCcw, AlertTriangle, Cloud, CloudOff, Save, Check } from 'lucide-react';
+import { Settings, HelpCircle, Shield, RotateCcw, AlertTriangle, Cloud, CloudOff, Save, Check, Database, Copy } from 'lucide-react';
 import { isFirebaseEnabled } from '../firebase';
+import { isSupabaseEnabled } from '../supabase';
+
+const SUPABASE_MIGRATION_SQL = `-- Criar tabela de configurações da barbearia
+create table if not exists barber_settings (
+  id text primary key,
+  name text not null,
+  address text not null,
+  phone text not null,
+  logo_url text,
+  start_hour text not null,
+  end_hour text not null,
+  working_days integer[] not null
+);
+
+-- Criar tabela de serviços
+create table if not exists services (
+  id text primary key,
+  name text not null,
+  price numeric not null,
+  duration integer not null,
+  description text,
+  category text
+);
+
+-- Criar tabela de agendamentos
+create table if not exists bookings (
+  id text primary key,
+  client_name text not null,
+  client_whatsapp text not null,
+  service_id text not null,
+  service_name text not null,
+  service_price numeric not null,
+  date text not null,
+  time text not null,
+  status text not null,
+  notes text,
+  payment_method text,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Criar tabela de clientes (CRM)
+create table if not exists clients (
+  id text primary key,
+  name text not null,
+  phone text,
+  whatsapp text not null,
+  birth_date text,
+  notes text,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  total_bookings integer default 0 not null,
+  total_spent numeric default 0 not null
+);
+
+-- Criar tabela de transações (Financeiro)
+create table if not exists transactions (
+  id text primary key,
+  type text not null,
+  amount numeric not null,
+  date text not null,
+  description text not null,
+  payment_method text not null,
+  booking_id text,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);`;
 
 interface ConfigProps {
   settings: BarberSettings;
@@ -12,6 +76,8 @@ interface ConfigProps {
 export default function AdminConfig({ settings, onUpdateSettings }: ConfigProps) {
   const [formData, setFormData] = useState<BarberSettings>({ ...settings });
   const [isSaved, setIsSaved] = useState(false);
+  const [showMigrationSql, setShowMigrationSql] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,6 +95,13 @@ export default function AdminConfig({ settings, onUpdateSettings }: ConfigProps)
       dbStore.resetToDemo();
     }
   };
+
+  const handleCopySQL = () => {
+    navigator.clipboard.writeText(SUPABASE_MIGRATION_SQL);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
 
   return (
     <div className="space-y-6 font-sans text-zinc-200" id="admin-config-container">
@@ -127,30 +200,83 @@ export default function AdminConfig({ settings, onUpdateSettings }: ConfigProps)
           {/* PAINEL DE CONEXÃO DO BANCO DE DADOS */}
           <div className="bg-[#121212] border border-white/5 p-6 rounded-3xl shadow-xl space-y-4" id="db-status-panel">
             <h4 className="text-sm font-display font-semibold text-white border-b border-white/5 pb-3 flex items-center gap-2">
-              <Shield className="h-4 w-4 text-amber-500" /> Rede e Banco de Dados (Cloud-Native)
+              <Shield className="h-4 w-4 text-amber-500" /> Conexão e Banco de Dados (Supabase / Cloud)
             </h4>
 
-            {isFirebaseEnabled ? (
+            {isSupabaseEnabled ? (
+              <div className="flex items-start gap-3 bg-emerald-500/5 p-4 rounded-xl border border-emerald-500/10" id="supabase-active-box">
+                <Cloud className="h-5 w-5 text-emerald-400 mt-0.5 flex-shrink-0 animate-pulse" />
+                <div>
+                  <h5 className="text-xs text-emerald-400 font-bold">Supabase Conectado e Ativo</h5>
+                  <p className="text-[11px] text-zinc-400 mt-1">
+                    Seu sistema está conectado com sucesso à URL <strong>vvlhvkxjanpjxjeefzar.supabase.co</strong>. Os agendamentos, clientes, serviços, faturamentos e autenticações estão sendo sincronizados do PostgreSQL em tempo real de forma 100% segura.
+                  </p>
+                </div>
+              </div>
+            ) : isFirebaseEnabled ? (
               <div className="flex items-start gap-3 bg-emerald-500/5 p-4 rounded-xl border border-emerald-500/10" id="db-active-box">
                 <Cloud className="h-5 w-5 text-emerald-500 mt-0.5 flex-shrink-0 animate-pulse" />
                 <div>
-                  <h5 className="text-xs text-emerald-400 font-bold">Firestore Conectado e Ativo</h5>
-                  <p className="text-[11px] text-zinc-400 mt-1">Seu sistema está sincronizando todas as informações na nuvem em tempo real (autenticações, clientes, faturamentos, agendamentos).</p>
+                  <h5 className="text-xs text-emerald-450 font-bold">Firestore Conectado e Ativo</h5>
+                  <p className="text-[11px] text-zinc-400 mt-1">Seu sistema está sincronizando todas as informações na nuvem em tempo real via Firebase.</p>
                 </div>
               </div>
             ) : (
               <div className="flex items-start gap-3 bg-amber-500/5 p-4 rounded-xl border border-amber-500/10" id="db-inactive-box">
                 <CloudOff className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
                 <div>
-                  <h5 className="text-xs text-amber-400 font-bold">Modo Local Inteligente</h5>
-                  <p className="text-[11px] text-zinc-400 mt-1">Banco de dados Cloud inativo. O SaaS está executando em Sandbox Local via localStorage (todos os dados persistem em seu navegador e são criados sob demanda com presets completos para teste).</p>
+                  <h5 className="text-xs text-amber-400 font-bold">Modo de Avaliação / Sandbox Local</h5>
+                  <p className="text-[11px] text-zinc-400 mt-1">
+                    Rodando localmente em localStorage. Todas as edições persistem localmente e o projeto conta com massa de testes completa.
+                  </p>
                 </div>
               </div>
             )}
 
-            <div className="text-[11px] text-zinc-500 leading-relaxed font-sans flex gap-2">
-              <HelpCircle className="h-4 w-4 text-zinc-650 flex-shrink-0" />
-              <span>Para ativar o banco na nuvem Firebase permanentemente, finalize a criação do banco de dados clicando no menu Firebase Config na barra do AI Studio. Nosso código se encarregará de sincronizar de forma nativa assim que as credenciais estiverem detectadas no arquivo correspondente.</span>
+            <div className="space-y-3 pt-2">
+              <div className="text-[11px] text-zinc-400 leading-relaxed font-sans flex gap-2">
+                <HelpCircle className="h-4 w-4 text-zinc-500 flex-shrink-0" />
+                <span>
+                  Para que a sincronização funcione perfeitamente, certifique-se de configurar a variável de ambiente <strong>VITE_SUPABASE_ANON_KEY</strong> na aba Secrets/Settings do AI Studio.
+                </span>
+              </div>
+
+              {/* RETORNA O CODIGO SQL PARA O EDITOR SUPABASE */}
+              <div className="border border-white/5 rounded-2xl p-4 bg-zinc-950/40 relative overflow-hidden">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-zinc-300 font-bold flex items-center gap-1.5 font-sans">
+                    <Database className="h-3.5 w-3.5 text-amber-500" /> Scripts SQL de Execução/Migração
+                  </span>
+                  <button
+                    onClick={() => setShowMigrationSql(!showMigrationSql)}
+                    className="text-[10px] text-amber-500 hover:text-amber-400 underline font-medium cursor-pointer"
+                  >
+                    {showMigrationSql ? 'Ocultar Código' : 'Visualizar SQL'}
+                  </button>
+                </div>
+
+                {showMigrationSql && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-[10px] text-zinc-400 leading-relaxed">
+                      Siga o passo a passo: no Console do Supabase, vá em <strong>SQL Editor</strong> {"->"} <strong>New Query</strong>, cole as linhas abaixo e clique em <strong>Run</strong>.
+                    </p>
+                    <div className="relative">
+                      <pre className="bg-zinc-950 p-3 rounded-xl border border-white/5 font-mono text-[9px] text-zinc-400 overflow-x-auto max-h-48">
+                        {SUPABASE_MIGRATION_SQL}
+                      </pre>
+                      <button
+                        onClick={handleCopySQL}
+                        type="button"
+                        className="absolute top-2 right-2 p-1.5 rounded-lg bg-zinc-900 border border-white/5 text-zinc-400 hover:text-amber-500 hover:bg-zinc-800 transition-all flex items-center gap-1 cursor-pointer"
+                        title="Copiar SQL"
+                      >
+                        {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                        <span className="text-[8px] font-sans">{copied ? 'Copiado!' : 'Copiar'}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

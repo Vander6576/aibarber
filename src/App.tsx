@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { dbStore } from './dbStore';
 import { isFirebaseEnabled, auth } from './firebase';
+import { isSupabaseEnabled, supabase } from './supabase';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { Service, Booking, Client, Transaction, BarberSettings, ViewType, AdminTabType } from './types';
 
@@ -104,8 +105,8 @@ export default function App() {
       const srvsData = await dbStore.getServices();
       setServices(srvsData);
 
-      // 2. Só carrega as coleções administrativas restritas se o admin estiver logado ou em modo Sandbox sem Firebase
-      if (!isFirebaseEnabled || isAdminLoggedIn) {
+      // 2. Só carrega as coleções administrativas restritas se o admin estiver logado ou em modo Sandbox sem Firebase/Supabase
+      if ((!isFirebaseEnabled && !isSupabaseEnabled) || isAdminLoggedIn) {
         try {
           const bksData = await dbStore.getBookings();
           setBookings(bksData || []);
@@ -143,9 +144,35 @@ export default function App() {
     loadDatabase();
   }, [isAdminLoggedIn]);
 
-  // --- SINCRONIZAÇÃO DE AUTENTICAÇÃO COM FIREBASE OU LOCAL ---
+  // --- SINCRONIZAÇÃO DE AUTENTICAÇÃO COM SUPABASE, FIREBASE OU LOCAL ---
   useEffect(() => {
-    if (isFirebaseEnabled && auth) {
+    if (isSupabaseEnabled && supabase) {
+      // Obter sessão inicial
+      supabase.auth.getSession().then(({ data: { session } }: any) => {
+        if (session && session.user) {
+          setFirebaseUser(session.user);
+          setIsAdminLoggedIn(true);
+        } else {
+          setFirebaseUser(null);
+          setIsAdminLoggedIn(false);
+        }
+      });
+
+      // Escutar mudanças de estado
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: any) => {
+        if (session && session.user) {
+          setFirebaseUser(session.user);
+          setIsAdminLoggedIn(true);
+        } else {
+          setFirebaseUser(null);
+          setIsAdminLoggedIn(false);
+        }
+      });
+
+      return () => {
+        subscription.unsubscribe();
+      };
+    } else if (isFirebaseEnabled && auth) {
       const unsubscribe = onAuthStateChanged(auth, (user) => {
         if (user) {
           setFirebaseUser(user);
@@ -235,7 +262,19 @@ export default function App() {
       return;
     }
 
-    if (isFirebaseEnabled && auth) {
+    if (isSupabaseEnabled && supabase) {
+      try {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: emailStr,
+          password: authPassword
+        });
+        if (error) {
+          setAuthError("Erro de acesso Supabase: " + error.message);
+        }
+      } catch (err: any) {
+        setAuthError("Erro de acesso Supabase: E-mail ou senha inválidos.");
+      }
+    } else if (isFirebaseEnabled && auth) {
       try {
         await signInWithEmailAndPassword(auth, emailStr, authPassword);
       } catch (err: any) {
@@ -270,7 +309,22 @@ export default function App() {
       return;
     }
 
-    if (isFirebaseEnabled && auth) {
+    if (isSupabaseEnabled && supabase) {
+      try {
+        const { error } = await supabase.auth.signUp({
+          email: authEmail.trim(),
+          password: authPassword
+        });
+        if (error) {
+          setAuthError("Erro Supabase: " + error.message);
+        } else {
+          alert("Cadastro realizado! Verifique seu e-mail caso o envio esteja ativo no painel Supabase.");
+          setIsRegisterMode(false);
+        }
+      } catch (err: any) {
+        setAuthError("Erro Supabase: " + err.message);
+      }
+    } else if (isFirebaseEnabled && auth) {
       try {
         await createUserWithEmailAndPassword(auth, authEmail, authPassword);
         setIsRegisterMode(false);
@@ -289,7 +343,9 @@ export default function App() {
 
   const handleAdminLogout = async () => {
     setAuthError("");
-    if (isFirebaseEnabled && auth) {
+    if (isSupabaseEnabled && supabase) {
+      await supabase.auth.signOut();
+    } else if (isFirebaseEnabled && auth) {
       await signOut(auth);
     } else {
       localStorage.removeItem('barber_admin_auth');

@@ -13,7 +13,126 @@ import {
   onSnapshot
 } from 'firebase/firestore';
 import { db, isFirebaseEnabled, handleFirestoreError, OperationType } from './firebase';
+import { supabase, isSupabaseEnabled } from './supabase';
 import { Service, Booking, Client, Transaction, BarberSettings } from './types';
+
+// ==========================================
+// MAPEAMENTOS DE DADOS PARA SUPABASE (camelCase <-> snake_case)
+// ==========================================
+
+function mapSettingsFromDb(data: any): BarberSettings {
+  return {
+    name: data.name,
+    address: data.address,
+    phone: data.phone,
+    logoUrl: data.logo_url || '',
+    startHour: data.start_hour,
+    endHour: data.end_hour,
+    workingDays: data.working_days || []
+  };
+}
+
+function mapSettingsToDb(data: BarberSettings): any {
+  return {
+    id: 'barber',
+    name: data.name,
+    address: data.address,
+    phone: data.phone,
+    logo_url: data.logoUrl || '',
+    start_hour: data.startHour,
+    end_hour: data.endHour,
+    working_days: data.workingDays || []
+  };
+}
+
+function mapBookingFromDb(data: any): Booking {
+  return {
+    id: data.id,
+    clientName: data.client_name,
+    clientWhatsApp: data.client_whatsapp,
+    serviceId: data.service_id,
+    serviceName: data.service_name,
+    servicePrice: Number(data.service_price),
+    date: data.date,
+    time: data.time,
+    status: data.status,
+    notes: data.notes || '',
+    paymentMethod: data.payment_method || undefined,
+    createdAt: data.created_at
+  };
+}
+
+function mapBookingToDb(data: any): any {
+  return {
+    id: data.id,
+    client_name: data.clientName,
+    client_whatsapp: data.clientWhatsApp,
+    service_id: data.serviceId,
+    service_name: data.serviceName,
+    service_price: data.servicePrice,
+    date: data.date,
+    time: data.time,
+    status: data.status,
+    notes: data.notes || null,
+    payment_method: data.paymentMethod || null,
+    created_at: data.createdAt
+  };
+}
+
+function mapClientFromDb(data: any): Client {
+  return {
+    id: data.id,
+    name: data.name,
+    phone: data.phone || '',
+    whatsapp: data.whatsapp,
+    birthDate: data.birth_date || '',
+    notes: data.notes || '',
+    createdAt: data.created_at,
+    totalBookings: Number(data.total_bookings),
+    totalSpent: Number(data.total_spent)
+  };
+}
+
+function mapClientToDb(data: any): any {
+  return {
+    id: data.id,
+    name: data.name,
+    phone: data.phone || null,
+    whatsapp: data.whatsapp,
+    birth_date: data.birthDate || null,
+    notes: data.notes || null,
+    created_at: data.createdAt,
+    total_bookings: data.totalBookings,
+    total_spent: data.totalSpent
+  };
+}
+
+function mapTransactionFromDb(data: any): Transaction {
+  return {
+    id: data.id,
+    type: data.type,
+    amount: Number(data.amount),
+    date: data.date,
+    description: data.description,
+    paymentMethod: data.payment_method,
+    bookingId: data.booking_id || undefined,
+    createdAt: data.created_at
+  };
+}
+
+function mapTransactionToDb(data: any): any {
+  return {
+    id: data.id,
+    type: data.type,
+    amount: data.amount,
+    date: data.date,
+    description: data.description,
+    payment_method: data.paymentMethod,
+    booking_id: data.bookingId || null,
+    created_at: data.createdAt
+  };
+}
+
 
 // ==========================================
 // DADOS INICIAIS PADRÃO / SEGURADOS (MOCK)
@@ -204,6 +323,28 @@ export const dbStore = {
 
   // --- CONFIGURAÇÕES DA BARBEARIA ---
   async getSettings(): Promise<BarberSettings> {
+    if (isSupabaseEnabled && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('barber_settings')
+          .select('*')
+          .eq('id', 'barber')
+          .maybeSingle();
+        if (error) throw error;
+        if (data) {
+          return mapSettingsFromDb(data);
+        } else {
+          try {
+            await supabase.from('barber_settings').upsert([mapSettingsToDb(DEFAULT_SETTINGS)]);
+          } catch (upsertErr) {
+            console.warn("Could not upsert default settings in Supabase:", upsertErr);
+          }
+          return DEFAULT_SETTINGS;
+        }
+      } catch (error) {
+        console.warn("Supabase getSettings failed, checking Firebase/Local fallback:", error);
+      }
+    }
     if (isFirebaseEnabled && db) {
       const path = 'settings/barber';
       try {
@@ -230,6 +371,17 @@ export const dbStore = {
   },
 
   async updateSettings(settings: BarberSettings): Promise<void> {
+    if (isSupabaseEnabled && supabase) {
+      try {
+        const { error } = await supabase
+          .from('barber_settings')
+          .upsert([mapSettingsToDb(settings)]);
+        if (!error) return;
+        throw error;
+      } catch (error) {
+        console.warn("Supabase updateSettings failed, checking Firebase/Local fallback:", error);
+      }
+    }
     if (isFirebaseEnabled && db) {
       const path = 'settings/barber';
       try {
@@ -244,6 +396,27 @@ export const dbStore = {
 
   // --- CATÁLOGO DE SERVIÇOS ---
   async getServices(): Promise<Service[]> {
+    if (isSupabaseEnabled && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('services')
+          .select('*')
+          .order('name');
+        if (error) throw error;
+        if (data && data.length > 0) {
+          return data as Service[];
+        } else {
+          try {
+            await supabase.from('services').upsert(DEFAULT_SERVICES);
+          } catch (upsertErr) {
+            console.warn("Could not auto-populate services table in Supabase:", upsertErr);
+          }
+          return DEFAULT_SERVICES;
+        }
+      } catch (error) {
+        console.warn("Supabase getServices failed, checking Firebase/Local fallback:", error);
+      }
+    }
     if (isFirebaseEnabled && db) {
       const path = 'services';
       try {
@@ -266,6 +439,17 @@ export const dbStore = {
     const newId = "s-" + Math.random().toString(36).substr(2, 9);
     const newService: Service = { ...service, id: newId };
     
+    if (isSupabaseEnabled && supabase) {
+      try {
+        const { error } = await supabase
+          .from('services')
+          .insert([newService]);
+        if (!error) return newService;
+        throw error;
+      } catch (error) {
+        console.warn("Supabase addService failed, checking Firebase/Local fallback:", error);
+      }
+    }
     if (isFirebaseEnabled && db) {
       const path = `services/${newId}`;
       try {
@@ -283,6 +467,18 @@ export const dbStore = {
   },
 
   async updateService(id: string, service: Partial<Service>): Promise<void> {
+    if (isSupabaseEnabled && supabase) {
+      try {
+        const { error } = await supabase
+          .from('services')
+          .update(service)
+          .eq('id', id);
+        if (!error) return;
+        throw error;
+      } catch (error) {
+        console.warn("Supabase updateService failed, checking Firebase/Local fallback:", error);
+      }
+    }
     if (isFirebaseEnabled && db) {
       const path = `services/${id}`;
       try {
@@ -298,6 +494,18 @@ export const dbStore = {
   },
 
   async deleteService(id: string): Promise<void> {
+    if (isSupabaseEnabled && supabase) {
+      try {
+        const { error } = await supabase
+          .from('services')
+          .delete()
+          .eq('id', id);
+        if (!error) return;
+        throw error;
+      } catch (error) {
+        console.warn("Supabase deleteService failed, checking Firebase/Local fallback:", error);
+      }
+    }
     if (isFirebaseEnabled && db) {
       const path = `services/${id}`;
       try {
@@ -314,6 +522,18 @@ export const dbStore = {
 
   // --- AGENDAMENTOS (BOOKINGS) ---
   async getBookings(): Promise<Booking[]> {
+    if (isSupabaseEnabled && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('bookings')
+          .select('*')
+          .order('date', { ascending: false });
+        if (error) throw error;
+        return (data || []).map(mapBookingFromDb);
+      } catch (error) {
+        console.warn("Supabase getBookings failed, checking Firebase/Local fallback:", error);
+      }
+    }
     if (isFirebaseEnabled && db) {
       const path = 'bookings';
       try {
@@ -333,6 +553,18 @@ export const dbStore = {
   },
 
   async getBookingsByDate(date: string): Promise<Booking[]> {
+    if (isSupabaseEnabled && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('bookings')
+          .select('*')
+          .eq('date', date);
+        if (error) throw error;
+        return (data || []).map(mapBookingFromDb);
+      } catch (error) {
+        console.warn("Supabase getBookingsByDate failed, checking Firebase/Local fallback:", error);
+      }
+    }
     if (isFirebaseEnabled && db) {
       const path = 'bookings';
       try {
@@ -354,6 +586,18 @@ export const dbStore = {
 
   async getBookingsByWhatsApp(whatsapp: string): Promise<Booking[]> {
     const cleanWhatsApp = whatsapp.trim().replace(/\D/g, '');
+    if (isSupabaseEnabled && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('bookings')
+          .select('*')
+          .or(`client_whatsapp.eq."${whatsapp}",client_whatsapp.eq."${cleanWhatsApp}",client_whatsapp.ilike."%${cleanWhatsApp}%"`);
+        if (error) throw error;
+        return (data || []).map(mapBookingFromDb);
+      } catch (error) {
+        console.warn("Supabase getBookingsByWhatsApp failed, checking Firebase/Local fallback:", error);
+      }
+    }
     if (isFirebaseEnabled && db) {
       const path = 'bookings';
       try {
@@ -384,6 +628,29 @@ export const dbStore = {
     // Salva ou atualiza automaticamente o cliente no cadastro
     await this.registerOrUpdateClient(booking.clientName, booking.clientWhatsApp, booking.servicePrice, booking.date);
 
+    if (isSupabaseEnabled && supabase) {
+      try {
+        const { error } = await supabase
+          .from('bookings')
+          .insert([mapBookingToDb(newBooking)]);
+        if (error) throw error;
+
+        // Se já vier concluído, gera faturamento imediato
+        if (newBooking.status === 'concluido' && newBooking.paymentMethod) {
+          await this.addTransaction({
+            type: 'receita',
+            amount: newBooking.servicePrice,
+            date: newBooking.date,
+            description: `Atendimento - ${newBooking.clientName} (${newBooking.serviceName})`,
+            paymentMethod: newBooking.paymentMethod,
+            bookingId: newId
+          });
+        }
+        return newBooking;
+      } catch (error) {
+        console.warn("Supabase addBooking failed, checking Firebase/Local fallback:", error);
+      }
+    }
     if (isFirebaseEnabled && db) {
       const path = `bookings/${newId}`;
       try {
@@ -442,6 +709,23 @@ export const dbStore = {
       }
     }
 
+    if (isSupabaseEnabled && supabase) {
+      try {
+        const dbUpdate: any = {};
+        if (update.status) dbUpdate.status = update.status;
+        if (update.paymentMethod) dbUpdate.payment_method = update.paymentMethod;
+        if (update.notes !== undefined) dbUpdate.notes = update.notes;
+
+        const { error } = await supabase
+          .from('bookings')
+          .update(dbUpdate)
+          .eq('id', id);
+        if (!error) return;
+        throw error;
+      } catch (error) {
+        console.warn("Supabase updateBooking failed, checking Firebase/Local fallback:", error);
+      }
+    }
     if (isFirebaseEnabled && db) {
       const path = `bookings/${id}`;
       try {
@@ -457,6 +741,18 @@ export const dbStore = {
   },
 
   async deleteBooking(id: string): Promise<void> {
+    if (isSupabaseEnabled && supabase) {
+      try {
+        const { error } = await supabase
+          .from('bookings')
+          .delete()
+          .eq('id', id);
+        if (!error) return;
+        throw error;
+      } catch (error) {
+        console.warn("Supabase deleteBooking failed, checking Firebase/Local fallback:", error);
+      }
+    }
     if (isFirebaseEnabled && db) {
       const path = `bookings/${id}`;
       try {
@@ -473,6 +769,18 @@ export const dbStore = {
 
   // --- CADASTRO DE CLIENTES ---
   async getClients(): Promise<Client[]> {
+    if (isSupabaseEnabled && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('clients')
+          .select('*')
+          .order('name');
+        if (error) throw error;
+        return (data || []).map(mapClientFromDb);
+      } catch (error) {
+        console.warn("Supabase getClients failed, checking Firebase/Local fallback:", error);
+      }
+    }
     if (isFirebaseEnabled && db) {
       const path = 'clients';
       try {
@@ -499,6 +807,17 @@ export const dbStore = {
       createdAt: new Date().toISOString()
     };
 
+    if (isSupabaseEnabled && supabase) {
+      try {
+        const { error } = await supabase
+          .from('clients')
+          .insert([mapClientToDb(newClient)]);
+        if (error) throw error;
+        return newClient;
+      } catch (error) {
+        console.warn("Supabase addClient failed, checking Firebase/Local fallback:", error);
+      }
+    }
     if (isFirebaseEnabled && db) {
       const path = `clients/${newId}`;
       try {
@@ -516,6 +835,27 @@ export const dbStore = {
   },
 
   async updateClient(id: string, update: Partial<Client>): Promise<void> {
+    if (isSupabaseEnabled && supabase) {
+      try {
+        const dbUpdate: any = {};
+        if (update.name) dbUpdate.name = update.name;
+        if (update.phone !== undefined) dbUpdate.phone = update.phone;
+        if (update.whatsapp) dbUpdate.whatsapp = update.whatsapp;
+        if (update.birthDate !== undefined) dbUpdate.birth_date = update.birthDate;
+        if (update.notes !== undefined) dbUpdate.notes = update.notes;
+        if (update.totalBookings !== undefined) dbUpdate.total_bookings = update.totalBookings;
+        if (update.totalSpent !== undefined) dbUpdate.total_spent = update.totalSpent;
+
+        const { error } = await supabase
+          .from('clients')
+          .update(dbUpdate)
+          .eq('id', id);
+        if (!error) return;
+        throw error;
+      } catch (error) {
+        console.warn("Supabase updateClient failed, checking Firebase/Local fallback:", error);
+      }
+    }
     if (isFirebaseEnabled && db) {
       const path = `clients/${id}`;
       try {
@@ -532,6 +872,20 @@ export const dbStore = {
 
   async getClientByWhatsApp(whatsapp: string): Promise<Client | null> {
     const cleanWhatsApp = whatsapp.trim().replace(/\D/g, '');
+    if (isSupabaseEnabled && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('clients')
+          .select('*')
+          .or(`whatsapp.eq."${whatsapp}",whatsapp.eq."${cleanWhatsApp}",whatsapp.ilike."%${cleanWhatsApp}%"`)
+          .maybeSingle();
+        if (error) throw error;
+        if (data) return mapClientFromDb(data);
+        return null;
+      } catch (error) {
+        console.warn("Supabase getClientByWhatsApp failed, checking Firebase/Local fallback:", error);
+      }
+    }
     if (isFirebaseEnabled && db) {
       const path = 'clients';
       try {
@@ -575,6 +929,18 @@ export const dbStore = {
 
   // --- CONTROLE FINANCEIRO (TRANSACTIONS) ---
   async getTransactions(): Promise<Transaction[]> {
+    if (isSupabaseEnabled && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('transactions')
+          .select('*')
+          .order('date', { ascending: false });
+        if (error) throw error;
+        return (data || []).map(mapTransactionFromDb);
+      } catch (error) {
+        console.warn("Supabase getTransactions failed, checking Firebase/Local fallback:", error);
+      }
+    }
     if (isFirebaseEnabled && db) {
       const path = 'transactions';
       try {
@@ -601,6 +967,17 @@ export const dbStore = {
       createdAt: new Date().toISOString()
     };
 
+    if (isSupabaseEnabled && supabase) {
+      try {
+        const { error } = await supabase
+          .from('transactions')
+          .insert([mapTransactionToDb(newTx)]);
+        if (error) throw error;
+        return newTx;
+      } catch (error) {
+        console.warn("Supabase addTransaction failed, checking Firebase/Local fallback:", error);
+      }
+    }
     if (isFirebaseEnabled && db) {
       const path = `transactions/${newId}`;
       try {
@@ -618,6 +995,18 @@ export const dbStore = {
   },
 
   async deleteTransaction(id: string): Promise<void> {
+    if (isSupabaseEnabled && supabase) {
+      try {
+        const { error } = await supabase
+          .from('transactions')
+          .delete()
+          .eq('id', id);
+        if (!error) return;
+        throw error;
+      } catch (error) {
+        console.warn("Supabase deleteTransaction failed, checking Firebase/Local fallback:", error);
+      }
+    }
     if (isFirebaseEnabled && db) {
       const path = `transactions/${id}`;
       try {
