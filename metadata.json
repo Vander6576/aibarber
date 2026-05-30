@@ -1,0 +1,6 @@
+{
+  "name": "Agenda Inteligente para Barbearias",
+  "description": "Aplicativo SaaS completo de agendamento de horários, controle financeiro integrado a Pix/Cartão, CRM de clientes e automação com templates de lembretes para WhatsApp.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
