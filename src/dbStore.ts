@@ -12,7 +12,7 @@ import {
   orderBy,
   onSnapshot
 } from 'firebase/firestore';
-import { db, isFirebaseEnabled, handleFirestoreError, OperationType } from './firebase';
+import { db, isFirebaseEnabled, handleFirestoreError, OperationType, auth } from './firebase';
 import { supabase, isSupabaseEnabled } from './supabase';
 import { Service, Booking, Client, Transaction, BarberSettings } from './types';
 
@@ -382,7 +382,7 @@ export const dbStore = {
         console.warn("Supabase updateSettings failed, checking Firebase/Local fallback:", error);
       }
     }
-    if (isFirebaseEnabled && db) {
+    if (isFirebaseEnabled && db && auth?.currentUser) {
       const path = 'settings/barber';
       try {
         await setDoc(doc(db, 'settings', 'barber'), settings);
@@ -450,7 +450,7 @@ export const dbStore = {
         console.warn("Supabase addService failed, checking Firebase/Local fallback:", error);
       }
     }
-    if (isFirebaseEnabled && db) {
+    if (isFirebaseEnabled && db && auth?.currentUser) {
       const path = `services/${newId}`;
       try {
         await setDoc(doc(db, 'services', newId), newService);
@@ -479,7 +479,7 @@ export const dbStore = {
         console.warn("Supabase updateService failed, checking Firebase/Local fallback:", error);
       }
     }
-    if (isFirebaseEnabled && db) {
+    if (isFirebaseEnabled && db && auth?.currentUser) {
       const path = `services/${id}`;
       try {
         await updateDoc(doc(db, 'services', id), service as any);
@@ -506,7 +506,7 @@ export const dbStore = {
         console.warn("Supabase deleteService failed, checking Firebase/Local fallback:", error);
       }
     }
-    if (isFirebaseEnabled && db) {
+    if (isFirebaseEnabled && db && auth?.currentUser) {
       const path = `services/${id}`;
       try {
         await deleteDoc(doc(db, 'services', id));
@@ -534,7 +534,7 @@ export const dbStore = {
         console.warn("Supabase getBookings failed, checking Firebase/Local fallback:", error);
       }
     }
-    if (isFirebaseEnabled && db) {
+    if (isFirebaseEnabled && db && auth?.currentUser) {
       const path = 'bookings';
       try {
         const querySnapshot = await getDocs(collection(db, 'bookings'));
@@ -753,7 +753,7 @@ export const dbStore = {
         console.warn("Supabase deleteBooking failed, checking Firebase/Local fallback:", error);
       }
     }
-    if (isFirebaseEnabled && db) {
+    if (isFirebaseEnabled && db && auth?.currentUser) {
       const path = `bookings/${id}`;
       try {
         await deleteDoc(doc(db, 'bookings', id));
@@ -781,7 +781,7 @@ export const dbStore = {
         console.warn("Supabase getClients failed, checking Firebase/Local fallback:", error);
       }
     }
-    if (isFirebaseEnabled && db) {
+    if (isFirebaseEnabled && db && auth?.currentUser) {
       const path = 'clients';
       try {
         const querySnapshot = await getDocs(collection(db, 'clients'));
@@ -941,7 +941,7 @@ export const dbStore = {
         console.warn("Supabase getTransactions failed, checking Firebase/Local fallback:", error);
       }
     }
-    if (isFirebaseEnabled && db) {
+    if (isFirebaseEnabled && db && auth?.currentUser) {
       const path = 'transactions';
       try {
         const querySnapshot = await getDocs(collection(db, 'transactions'));
@@ -978,7 +978,7 @@ export const dbStore = {
         console.warn("Supabase addTransaction failed, checking Firebase/Local fallback:", error);
       }
     }
-    if (isFirebaseEnabled && db) {
+    if (isFirebaseEnabled && db && auth?.currentUser) {
       const path = `transactions/${newId}`;
       try {
         await setDoc(doc(db, 'transactions', newId), newTx);
@@ -1007,7 +1007,7 @@ export const dbStore = {
         console.warn("Supabase deleteTransaction failed, checking Firebase/Local fallback:", error);
       }
     }
-    if (isFirebaseEnabled && db) {
+    if (isFirebaseEnabled && db && auth?.currentUser) {
       const path = `transactions/${id}`;
       try {
         await deleteDoc(doc(db, 'transactions', id));

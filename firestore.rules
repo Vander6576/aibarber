@@ -38,8 +38,7 @@ service cloud.firestore {
 
     // 3. Bookings Collection Rules
     match /bookings/{bookingId} {
-      allow get: if true; // Anyone can get by ID (success screen/direct link)
-      allow list: if isSignedIn() || (resource.data.clientWhatsApp != null); // Public queries restricted to filter match
+      allow read: if true; // Public read/list is allowed to support booking slot availability checks
       
       // Standard booking schema validation
       function isValidBooking(data) {

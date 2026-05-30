@@ -59,4 +59,4 @@ export interface BarberSettings {
 
 export type ViewType = 'client-schedule' | 'client-lookup' | 'admin';
 
-export type AdminTabType = 'dashboard' | 'agenda' | 'clientes' | 'financeiro' | 'servicos' | 'config';
+export type AdminTabType = 'dashboard' | 'agenda' | 'clientes' | 'financeiro' | 'relatorios' | 'servicos' | 'config';

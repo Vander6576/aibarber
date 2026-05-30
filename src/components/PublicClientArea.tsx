@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Service, Booking, BarberSettings } from '../types';
 import { dbStore } from '../dbStore';
-import { Calendar, Clock, User, Phone, Check, ChevronRight, Search, Sparkles, MapPin, MessageSquare, AlertCircle, Trash2, Scissors } from 'lucide-react';
+import { Calendar, Clock, User, Phone, Check, ChevronRight, Search, Sparkles, MapPin, MessageSquare, AlertCircle, Trash2, Scissors, X } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface PublicAreaProps {
@@ -31,8 +31,37 @@ export default function PublicClientArea({ services, bookings, settings, onAddBo
   const [searchedBookings, setSearchedBookings] = useState<Booking[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
 
-  // Define data mínima como hoje
-  const todayStr = new Date().toISOString().split('T')[0];
+  // Brasília timezone helpers
+  const getTodayBrasiliaStr = () => {
+    try {
+      const formatter = new Intl.DateTimeFormat('fr-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' });
+      return formatter.format(new Date()); // YYYY-MM-DD in São Paulo / Brasília
+    } catch (e) {
+      const d = new Date();
+      d.setMinutes(d.getMinutes() - 180); // UTC-3 approximation
+      return d.toISOString().split('T')[0];
+    }
+  };
+
+  const getNowBrasiliaTime = () => {
+    try {
+      const formatter = new Intl.DateTimeFormat('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+      return formatter.format(new Date()); // HH:mm in São Paulo / Brasília
+    } catch (e) {
+      const d = new Date();
+      const brDate = new Date(d.toLocaleString("en-US", {timeZone: "America/Sao_Paulo"}));
+      const hours = String(brDate.getHours()).padStart(2, '0');
+      const minutes = String(brDate.getMinutes()).padStart(2, '0');
+      return `${hours}:${minutes}`;
+    }
+  };
+
+  const todayStr = getTodayBrasiliaStr();
 
   // Limpa formulário após sucesso ou troca
   const resetScheduleWizard = () => {
@@ -52,17 +81,20 @@ export default function PublicClientArea({ services, bookings, settings, onAddBo
     setStep(2);
   };
 
-  // Gera dias para os próximos 14 dias para o calendário público
+  // Gera dias para os próximos 14 dias para o calendário público com base no fuso de Brasília
   const getUpcomingDays = () => {
     const list = [];
+    const todayBrStr = getTodayBrasiliaStr();
+    const [yr, mo, dy] = todayBrStr.split('-').map(Number);
+    
     for (let i = 0; i < 14; i++) {
-      const d = new Date();
+      const d = new Date(yr, mo - 1, dy);
       d.setDate(d.getDate() + i);
       const dayOfWeek = d.getDay();
       
       // Filtra dias de trabalho habilitados nas configurações (ex: ignora domingo)
       if (settings.workingDays.includes(dayOfWeek)) {
-        const dateStr = d.toISOString().split('T')[0];
+        const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         const dayLabel = d.getDate();
         const monthLabel = d.toLocaleDateString('pt-BR', { month: 'short' });
         const weekdayLabel = d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
@@ -102,11 +134,10 @@ export default function PublicClientArea({ services, bookings, settings, onAddBo
     };
   }, [selectedDate]);
 
-  // Gera horários disponíveis para o dia selecionado com validação contra colisão de dados
+  // Gera horários disponíveis para o dia selecionado com fuso de Brasília e hora limite do dia
   const getAvailableSlotsForDate = (date: string) => {
     if (!date) return [];
     
-    // Converte horas de funcionamento comerciais em slots de 30 minutos
     const slots: string[] = [];
     const [startH, startM] = settings.startHour.split(':').map(Number);
     const [endH, endM] = settings.endHour.split(':').map(Number);
@@ -130,10 +161,22 @@ export default function PublicClientArea({ services, bookings, settings, onAddBo
       .filter(b => b.date === date && b.status !== 'cancelado')
       .map(b => b.time);
 
-    return slots.map(time => ({
-      time,
-      isAvailable: !occupiedTimes.includes(time)
-    }));
+    const todayBrStr = getTodayBrasiliaStr();
+    const nowBrTime = getNowBrasiliaTime();
+
+    return slots.map(time => {
+      let isAvailable = !occupiedTimes.includes(time);
+      
+      // Se for hoje no fuso do Brasil, o horário do slot deve ser maior do que a hora atual de Brasília
+      if (isAvailable && date === todayBrStr) {
+        isAvailable = time > nowBrTime;
+      }
+
+      return {
+        time,
+        isAvailable
+      };
+    });
   };
 
   const slotsAvailable = getAvailableSlotsForDate(selectedDate);
@@ -195,12 +238,25 @@ export default function PublicClientArea({ services, bookings, settings, onAddBo
     try {
       await onUpdateBooking(id, { status: 'cancelado' });
       alert("Seu horário foi cancelado com sucesso!");
-      // Atualiza lista consultada localmente
       setSearchedBookings(prev => prev.map(b => b.id === id ? { ...b, status: 'cancelado' } : b));
     } catch (err) {
       alert("Erro ao efetuar cancelamento de agendamento. Favor entrar em contato.");
     }
   };
+
+  // Serviços Fictícios Premium para caso não haja serviços cadastrados no Firestore/Supabase
+  const fallbackServices: Service[] = [
+    { id: "s1", name: "Corte Masculino Degradê", price: 50.00, duration: 30, description: "Corte moderno com técnica degradê (fade) limpo e acabamento na navalha profissional." },
+    { id: "s2", name: "Barba Terapia Imperial", price: 35.00, duration: 30, description: "Alinhamento de barba com toalha quente vaporizada, óleos hidratantes e balm corretivo." },
+    { id: "s3", name: "Combo Cabelo + Barba Premium", price: 80.00, duration: 60, description: "Corte degradê estiloso, mais sua barba completa com toalha quente confortável." },
+    { id: "s4", name: "Sobrancelha Design Navalha", price: 20.00, duration: 15, description: "Design e limpeza das sobrancelhas feito de forma detalhada na navalha." },
+    { id: "s5", name: "Pigmentação Capilar Corretiva", price: 40.00, duration: 45, description: "Disfarce de falhas com pigmentos premium de alta durabilidade para cabelo ou barba." },
+    { id: "s6", name: "Luzes / Reflexo Alinhado", price: 90.00, duration: 60, description: "Descoloração moderna com touca ou mechas marcadas com finalização nutritiva." },
+    { id: "s7", name: "Selagem Redutora de Fios", price: 120.00, duration: 90, description: "Redução de frizz e volume com hidratação profunda e realinhamento térmico." },
+    { id: "s8", name: "Combo Pai e Filho", price: 110.00, duration: 90, description: "Cortar o cabelo junto com o amigão num momento especial de parceria masculina." }
+  ];
+
+  const activeServices = services && services.length > 0 ? services : fallbackServices;
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 px-1 py-4 font-sans text-zinc-200" id="public-area-wrapper">
@@ -242,282 +298,327 @@ export default function PublicClientArea({ services, bookings, settings, onAddBo
       </div>
 
       {/* ==========================================
-          VISTA 1: AGENDAMENTO (STEP BY STEP)
+          VISTA 1: AGENDAMENTO (CATÁLOGO SEMPRE VISÍVEL)
           ========================================== */}
       {activeSubTab === 'schedule' && (
-        <div className="bg-[#121212] border border-white/5 p-6 rounded-3xl shadow-xl flex flex-col justify-between" id="schedule-flow-card">
+        <div className="space-y-6" id="schedule-flow-card">
           
-          {/* STEP PROGRESS INDICATOR */}
-          {step < 4 && (
-            <div className="flex justify-between items-center bg-black px-4 py-2.5 rounded-xl border border-white/5 mb-6 text-xs text-zinc-400 font-mono">
-              <span className={step === 1 ? 'text-amber-500 font-bold' : 'text-emerald-500'}>1. Serviço</span>
-              <ChevronRight className="h-4 w-4 text-zinc-700" />
-              <span className={step === 2 ? 'text-amber-500 font-bold' : step > 2 ? 'text-emerald-500' : ''}>2. Dia e Hora</span>
-              <ChevronRight className="h-4 w-4 text-zinc-700" />
-              <span className={step === 3 ? 'text-amber-500 font-bold' : ''}>3. Identificação</span>
+          {/* CATÁLOGO DE SERVIÇOS VISÍVEL EM GRADE */}
+          <div className="bg-[#121212] border border-white/5 p-6 rounded-3xl shadow-xl space-y-4" id="services-catalog-view">
+            <div>
+              <span className="text-xs font-mono text-amber-500 font-bold uppercase tracking-wider block mb-1">Catálogo de Serviços</span>
+              <h3 className="text-xl font-display font-bold text-white flex items-center gap-2">
+                <Scissors className="h-5 w-5 text-amber-500" /> Nossos Serviços Profissionais
+              </h3>
+              <p className="text-xs text-zinc-400 mt-1">Selecione o serviço abaixo que deseja agendar. A lista abaixo estará sempre disponível para você agendar novos serviços seguidos para outros clientes.</p>
             </div>
-          )}
 
-          {/* STEP 1: CATALOG DE SERVIÇOS */}
-          {step === 1 && (
-            <div className="space-y-4" id="step-1-services">
-              <div>
-                <h3 className="text-base font-sans font-bold text-white flex items-center gap-1.5">
-                  <Scissors className="h-4 w-4 text-amber-500" /> Escolha o Serviço Desejado
-                </h3>
-                <p className="text-xs text-zinc-400 mt-0.5">Selecione uma das opções abaixo para prosseguir com a escolha do horário.</p>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 pt-1">
-                {services.map((srv) => (
-                  <div
-                    key={srv.id}
-                    onClick={() => handleSelectService(srv)}
-                    className="bg-zinc-950 border border-zinc-900 rounded-xl p-4 cursor-pointer hover:border-amber-500 sm:flex sm:justify-between sm:items-center text-left transition-all duration-200 group"
-                  >
-                    <div className="space-y-1 truncate sm:max-w-[70%]">
-                      <h4 className="text-sm font-sans font-bold text-white group-hover:text-amber-500 transition-colors">{srv.name}</h4>
-                      <p className="text-xs text-zinc-400 leading-relaxed truncate">{srv.description || "Finalização premium inclusa"}</p>
-                      <span className="inline-block text-[10px] font-mono font-medium text-zinc-500 bg-zinc-900 border border-zinc-850 px-2 rounded mt-1">Duração: {srv.duration} min</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              {activeServices.map((srv) => (
+                <div
+                  key={srv.id}
+                  onClick={() => handleSelectService(srv)}
+                  className="bg-zinc-950/80 border border-zinc-900 rounded-2xl p-5 cursor-pointer hover:border-amber-500/70 sm:flex sm:flex-col sm:justify-between text-left transition-all duration-300 group hover:shadow-lg hover:shadow-amber-500/5 relative overflow-hidden"
+                >
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-start gap-2">
+                      <h4 className="text-sm font-sans font-bold text-white group-hover:text-amber-500 transition-colors line-clamp-1">{srv.name}</h4>
+                      <span className="text-sm font-mono font-bold text-amber-500 whitespace-nowrap">R$ {srv.price.toFixed(2)}</span>
                     </div>
-
-                    <div className="flex justify-between sm:justify-end items-center gap-4 mt-3 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-0 border-zinc-900">
-                      <span className="text-sm font-mono font-bold text-amber-500">R$ {srv.price.toFixed(2)}</span>
-                      <span className="bg-zinc-900 group-hover:bg-amber-500 group-hover:text-black border border-zinc-800 text-amber-400 p-2 rounded-lg text-xs font-bold font-sans transition-all flex items-center gap-0.5">
-                        Agendar <ChevronRight className="h-3 w-3" />
-                      </span>
-                    </div>
+                    <p className="text-xs text-zinc-400 leading-relaxed line-clamp-2 h-8">{srv.description || "Finalização premium inclusa com cuidados especiais."}</p>
                   </div>
-                ))}
-              </div>
+
+                  <div className="flex justify-between items-center gap-4 mt-4 pt-3 border-t border-zinc-900/60 text-xs text-zinc-550 border-zinc-900">
+                    <span className="inline-block text-[10px] font-mono font-medium text-zinc-500 bg-zinc-900 border border-zinc-850 px-2.5 py-0.5 rounded-full">Duração: {srv.duration} min</span>
+                    <span className="bg-zinc-900 group-hover:bg-amber-500 group-hover:text-black border border-zinc-800 text-amber-400 px-3.5 py-1.5 rounded-xl font-bold font-sans transition-all flex items-center gap-1">
+                      Reservar <ChevronRight className="h-3.5 w-3.5" />
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
-          )}
+          </div>
 
-          {/* STEP 2: ESCOLHER DIA E HORA */}
-          {step === 2 && (
-            <div className="space-y-6" id="step-2-date-time">
-              <div>
-                <button onClick={() => setStep(1)} className="text-xs text-amber-500 hover:text-amber-400 flex items-center gap-1 font-semibold">
-                  Voltar para Serviços
-                </button>
-                <h3 className="text-base font-sans font-bold text-white mt-3">Escolha a Data e o Horário</h3>
-                <p className="text-xs text-zinc-400 mt-0.5">Selecione o dia desejado para ver os horários que o barbeiro possui cadastrado livre.</p>
-              </div>
-
-              {/* CAROUSEL HORIZONTAL DE DIAS */}
-              <div className="space-y-2">
-                <label className="text-xs text-zinc-400 block font-medium">Selecione o Dia:</label>
-                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-zinc-800">
-                  {upcomingDays.map((day) => {
-                    const isSelected = selectedDate === day.dateStr;
-                    return (
-                      <div
-                        key={day.dateStr}
-                        onClick={() => { setSelectedDate(day.dateStr); setSelectedTime(""); }}
-                        className={`flex-shrink-0 w-16 p-3 rounded-xl border cursor-pointer flex flex-col items-center justify-center text-center transition-all ${
-                          isSelected ? 'bg-amber-500 border-amber-500 text-black font-bold scale-[1.03]' : 'bg-zinc-950 border-zinc-900 text-zinc-400 hover:border-zinc-800'
-                        }`}
-                      >
-                        <span className="text-[10px] font-mono uppercase tracking-wider font-semibold">{day.weekdayLabel}</span>
-                        <span className="text-base font-bold my-0.5">{day.dayLabel}</span>
-                        <span className="text-[9px] uppercase">{day.monthLabel}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* GRID DE HORARIOS SE DATA ESTIVER ATIVA */}
-              {selectedDate ? (
-                <div className="space-y-3 animation-fade-in">
-                  <label className="text-xs text-zinc-400 block font-medium flex items-center gap-1">
-                    <Clock className="h-3.5 w-3.5 text-amber-500" /> Horários Disponíveis para {selectedDate.split('-').reverse().join('/')}:
-                  </label>
-
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                    {slotsAvailable.map((slot) => {
-                      const isSelected = selectedTime === slot.time;
-                      return (
-                        <button
-                          key={slot.time}
-                          type="button"
-                          disabled={!slot.isAvailable}
-                          onClick={() => setSelectedTime(slot.time)}
-                          className={`py-2 px-3 rounded-lg border font-mono text-xs font-bold transition-all ${
-                            !slot.isAvailable ? 'bg-zinc-950/60 border-zinc-900/60 text-zinc-700 cursor-not-allowed line-through' :
-                            isSelected ? 'bg-amber-500 border-amber-500 text-black scale-102 font-extrabold shadow' :
-                            'bg-zinc-950 border-zinc-850 text-white hover:border-zinc-700'
-                          }`}
-                        >
-                          {slot.time}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* LEGEND SLOTS */}
-                  <div className="flex gap-4 items-center text-[10px] text-zinc-500 pt-2 font-sans border-t border-zinc-900">
-                    <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-zinc-950 border border-zinc-850"></span> Disponível</span>
-                    <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-zinc-950/60 line-through"></span> Ocupado / Indisponível</span>
-                    <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-500"></span> Seu Horário Selecionado</span>
-                  </div>
-                </div>
-              ) : (
-                <div className="p-8 text-center bg-zinc-950 rounded-xl border border-dashed border-zinc-900 text-zinc-500 flex flex-col items-center">
-                  <Calendar className="h-8 w-8 text-zinc-850 mb-2" />
-                  <p className="text-xs">Por favor, selecione um dia acima para verificar os horários.</p>
-                </div>
-              )}
-
-              {/* NAVEGAÇÃO PROXIMO STEP */}
-              {selectedTime && (
-                <div className="flex justify-end pt-4 border-t border-zinc-850">
-                  <button
-                    onClick={() => setStep(3)}
-                    className="bg-amber-500 hover:bg-amber-400 text-zinc-950 px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-1 transition-all shadow"
-                  >
-                    Prosseguir Identificação <ChevronRight className="h-4 w-4" />
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* STEP 3: CONTATO E CONFIRMAÇÃO DO CLIENTE */}
-          {step === 3 && (
-            <div className="space-y-6" id="step-3-customer-form">
-              <div>
-                <button onClick={() => setStep(2)} className="text-xs text-amber-500 hover:text-amber-400 flex items-center gap-1 font-semibold">
-                  Voltar para Calendário
-                </button>
-                <h3 className="text-base font-sans font-bold text-white mt-3">Preencha seus Dados para Agendamento</h3>
-                <p className="text-xs text-zinc-400 mt-0.5">Precisamos do seu WhatsApp para enviar avisos de confirmação e alerta de lembrete.</p>
-              </div>
-
-              {/* CARD RESUMO EXPLICATIVO */}
-              {selectedService && (
-                <div className="bg-zinc-950 border border-zinc-850 p-4 rounded-xl space-y-2 text-xs font-sans">
-                  <div className="flex justify-between">
-                    <span className="text-zinc-500">Serviço Escolhido:</span>
-                    <span className="text-white font-bold">{selectedService.name}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-zinc-500 font-sans">Data & Horário:</span>
-                    <span className="text-amber-400 font-mono font-bold">{selectedDate.split('-').reverse().join('/')} às {selectedTime}</span>
-                  </div>
-                  <div className="flex justify-between border-t border-zinc-900 pt-2 text-zinc-400">
-                    <span>Preço a ser pago na barbearia:</span>
-                    <span className="font-mono font-bold text-white">R$ {selectedService.price.toFixed(2)}</span>
-                  </div>
-                </div>
-              )}
-
-              <form onSubmit={handleConfirmReservation} className="space-y-4 font-sans">
-                <div className="space-y-1">
-                  <label className="text-xs text-zinc-400 block font-medium">Seu Nome Completo *</label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
-                    <input
-                      type="text"
-                      required
-                      placeholder="Identifique-se para o barbeiro"
-                      value={customerName}
-                      onChange={(e) => setCustomerName(e.target.value)}
-                      className="bg-zinc-950 border border-zinc-800 text-sm text-white pl-9 pr-4 py-2 w-full rounded-xl focus:outline-none focus:border-amber-500/50"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs text-zinc-400 block font-medium">WhatsApp ou Celular *</label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
-                    <input
-                      type="text"
-                      required
-                      placeholder="(11) 99999-8888"
-                      value={customerWhatsApp}
-                      onChange={(e) => setCustomerWhatsApp(e.target.value)}
-                      className="bg-zinc-950 border border-zinc-800 text-sm text-white pl-9 pr-4 py-2 w-full rounded-xl focus:outline-none focus:border-amber-500/50"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs text-zinc-400 block font-medium">Alguma recomendação/obs para o barbeiro?</label>
-                  <textarea
-                    rows={2}
-                    placeholder="Ex: Gosto da barba desenhada, riscar o cabelo na máquina, etc."
-                    value={bookingNotes}
-                    onChange={(e) => setBookingNotes(e.target.value)}
-                    className="bg-zinc-950 border border-zinc-800 text-sm text-white px-3 py-2 w-full rounded-xl focus:outline-none focus:border-amber-500/50"
-                  />
-                </div>
-
-                <div className="flex justify-between items-center pt-4 border-t border-zinc-850">
-                  <span className="text-[11px] text-zinc-500 flex gap-1">
-                    <AlertCircle className="h-4 w-4 feed-shrink" /> Ao agendar você concorda com o comparecimento.
-                  </span>
-                  
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="bg-amber-500 hover:bg-amber-400 text-zinc-950 px-6 py-2.5 rounded-xl text-sm font-bold flex items-center gap-1 transition-all shadow"
-                  >
-                    {isSubmitting ? "Confirmando..." : "Confirmar Agendamento 💈"}
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          {/* STEP 4: SUCESSO DO AGENDAMENTO */}
-          {step === 4 && successBooking && (
-            <div className="space-y-5 text-center py-6 animate-in fade-in zoom-in duration-300 font-sans" id="step-4-success animate-all">
-              <div className="mx-auto bg-emerald-500/10 text-emerald-500 p-4 rounded-full w-fit border-4 border-zinc-950 shadow">
-                <Check className="h-10 w-10 animate-bounce" />
-              </div>
-
-              <div>
-                <h3 className="text-lg font-bold text-white">Agendamento Realizado com Sucesso!</h3>
-                <p className="text-xs text-zinc-400 mt-2">O barbeiro foi avisado e colocou seu nome no horário escolhido.</p>
-              </div>
-
-              {/* CARD DETALHADO DA RESERVA */}
-              <div className="bg-zinc-950 border border-zinc-850 text-left p-5 rounded-2xl space-y-3 font-sans max-w-sm mx-auto">
-                <div className="border-b border-zinc-900 pb-2.5">
-                  <h4 className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">Serviço Reservado:</h4>
-                  <span className="text-sm font-bold text-white block mt-1">{successBooking.serviceName}</span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 border-b border-zinc-900 pb-2.5">
-                  <div>
-                    <h5 className="text-[10px] text-zinc-500 font-semibold uppercase">Dia Escolhido:</h5>
-                    <span className="text-xs font-bold text-amber-500 block mt-0.5">{successBooking.date.split('-').reverse().join('/')}</span>
-                  </div>
-                  <div>
-                    <h5 className="text-[10px] text-zinc-500 font-semibold uppercase">Horário:</h5>
-                    <span className="text-xs font-bold text-amber-500 block mt-0.5">{successBooking.time}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-2.5 text-xs text-zinc-400 pt-1">
-                  <MapPin className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <strong className="text-zinc-300">Localização:</strong>
-                    <p className="text-[11px] mt-0.5 leading-relaxed">{settings.address}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-zinc-850">
+          {/* FLOATING DETAILED SCHEDULING MODAL OVERLAY */}
+          {selectedService && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in" id="scheduling-wizard-overlay">
+              <div className="bg-[#121212] border border-white/10 rounded-3xl p-6 shadow-2xl relative w-full max-w-lg max-h-[90vh] overflow-y-auto space-y-4" id="modal-container-wizard">
+                
+                {/* BOTÃO PARA FECHAR / CANCELAR */}
                 <button
                   type="button"
                   onClick={resetScheduleWizard}
-                  className="bg-zinc-950 hover:bg-zinc-900 text-amber-500 px-5 py-2.5 rounded-xl text-sm font-bold border border-zinc-800 hover:border-amber-500/40 transition-all shadow"
+                  className="absolute top-4 right-4 p-2 rounded-full hover:bg-white/5 text-zinc-400 hover:text-white transition-all cursor-pointer"
+                  title="Fechar"
                 >
-                  Fazer outro agendamento
+                  <X className="h-5 w-5" />
                 </button>
+
+                {/* MODAL HEADER */}
+                <div className="flex items-center gap-3 border-b border-white/5 pb-4">
+                  <div className="bg-amber-500/10 text-amber-400 p-2.5 rounded-xl border border-amber-500/20">
+                    <Calendar className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white font-sans">Agendamento Online</h3>
+                    <p className="text-xs text-zinc-400 mt-0.5">Complemente os dados para reservar sua vaga.</p>
+                  </div>
+                </div>
+
+                {/* PROGRESS BAR */}
+                <div className="flex justify-between items-center bg-black px-4 py-2.5 rounded-xl border border-white/5 text-[10px] text-zinc-400 font-mono">
+                  <span className="text-emerald-500 flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-500" /> {selectedService.name}</span>
+                  <ChevronRight className="h-3.5 w-3.5 text-zinc-700" />
+                  <span className={step === 2 ? 'text-amber-500 font-bold' : step > 2 ? 'text-emerald-500' : ''}>2. Escolher Dia/Hora</span>
+                  <ChevronRight className="h-3.5 w-3.5 text-zinc-700" />
+                  <span className={step === 3 ? 'text-amber-500 font-bold' : ''}>3. Seus Dados</span>
+                </div>
+
+                {/* STEP 2 IN OVERLAY: DATA & HORA */}
+                {step === 2 && (
+                  <div className="space-y-4 pt-1" id="step-2-date-time">
+                    <div>
+                      <h4 className="text-sm font-sans font-bold text-white">Selecione o Dia e Horário Desejado</h4>
+                      <p className="text-xs text-zinc-400 mt-0.5">Nossos horários acompanham o fuso oficial de Brasília.</p>
+                    </div>
+
+                    {/* HORIZONTAL DAYS CAROUSEL */}
+                    <div className="space-y-2">
+                      <label className="text-xs text-zinc-400 block font-medium">Dias Disponíveis:</label>
+                      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-zinc-800">
+                        {upcomingDays.map((day) => {
+                          const isSelected = selectedDate === day.dateStr;
+                          return (
+                            <div
+                              key={day.dateStr}
+                              onClick={() => { setSelectedDate(day.dateStr); setSelectedTime(""); }}
+                              className={`flex-shrink-0 w-16 p-3 rounded-xl border cursor-pointer flex flex-col items-center justify-center text-center transition-all ${
+                                isSelected ? 'bg-amber-500 border-amber-500 text-black font-bold scale-[1.03]' : 'bg-zinc-950 border-zinc-900 text-zinc-400 hover:border-zinc-800'
+                              }`}
+                            >
+                              <span className="text-[9px] font-mono uppercase tracking-wider font-semibold">{day.weekdayLabel}</span>
+                              <span className="text-base font-bold my-0.5">{day.dayLabel}</span>
+                              <span className="text-[9px] uppercase">{day.monthLabel}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* SLOTS DISPONÍVEIS */}
+                    {selectedDate ? (
+                      <div className="space-y-3 pt-1 animation-fade-in">
+                        <label className="text-xs text-zinc-400 block font-medium flex items-center gap-1.5">
+                          <Clock className="h-4 w-4 text-amber-500" /> Horários Disponíveis para {selectedDate.split('-').reverse().join('/')}:
+                        </label>
+
+                        <div className="grid grid-cols-4 gap-2 max-h-[160px] overflow-y-auto pr-1">
+                          {slotsAvailable.length > 0 ? (
+                            slotsAvailable.map((slot) => {
+                              const isSelected = selectedTime === slot.time;
+                              return (
+                                <button
+                                  key={slot.time}
+                                  type="button"
+                                  disabled={!slot.isAvailable}
+                                  onClick={() => setSelectedTime(slot.time)}
+                                  className={`py-2 px-1 rounded-lg border font-mono text-xs font-bold transition-all ${
+                                    !slot.isAvailable ? 'bg-zinc-950/60 border-zinc-900/40 text-zinc-700 cursor-not-allowed line-through' :
+                                    isSelected ? 'bg-amber-500 border-amber-500 text-black scale-102 font-extrabold shadow' :
+                                    'bg-zinc-950 border-zinc-850 text-white hover:border-zinc-700'
+                                  }`}
+                                >
+                                  {slot.time}
+                                </button>
+                              );
+                            })
+                          ) : (
+                            <div className="col-span-4 p-4 text-center text-xs text-zinc-500 bg-zinc-950 rounded-xl border border-dashed border-zinc-900">
+                              Nenhum horário comercial livre para hoje.
+                            </div>
+                          )}
+                        </div>
+
+                        {/* LEGEND SLOTS */}
+                        <div className="flex gap-4 items-center text-[9px] text-zinc-500 pt-2 font-sans border-t border-zinc-900">
+                          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-zinc-950 border border-zinc-850"></span> Disponível</span>
+                          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-zinc-950/60 line-through"></span> Ocupado/Passou</span>
+                          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-500"></span> Selecionado</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-6 text-center bg-zinc-950 rounded-xl border border-dashed border-zinc-900 text-zinc-500 flex flex-col items-center">
+                        <Calendar className="h-6 w-6 text-zinc-800 mb-1" />
+                        <p className="text-xs">Por favor, selecione um dia acima para verificar horários.</p>
+                      </div>
+                    )}
+
+                    {/* CONTINUAR */}
+                    <div className="flex justify-between items-center pt-4 border-t border-zinc-850">
+                      <button
+                        type="button"
+                        onClick={resetScheduleWizard}
+                        className="text-xs text-zinc-500 hover:text-white transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                      
+                      <button
+                        type="button"
+                        disabled={!selectedTime}
+                        onClick={() => setStep(3)}
+                        className={`px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-all shadow ${
+                          selectedTime ? 'bg-amber-500 hover:bg-amber-400 text-zinc-950 cursor-pointer' : 'bg-zinc-900 text-zinc-600 cursor-not-allowed'
+                        }`}
+                      >
+                        Avançar Identificação <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* STEP 3 IN OVERLAY: IDENTIFICATION */}
+                {step === 3 && (
+                  <div className="space-y-4 pt-1" id="step-3-customer-form">
+                    <div>
+                      <button onClick={() => setStep(2)} className="text-xs text-amber-500 hover:text-amber-400 flex items-center gap-1 font-semibold">
+                        Voltar para Calendário
+                      </button>
+                      <h3 className="text-sm font-sans font-bold text-white mt-2">Dados de Confirmação</h3>
+                      <p className="text-xs text-zinc-400 mt-0.5">Preencha os campos para o barbeiro te identificar.</p>
+                    </div>
+
+                    <div className="bg-zinc-950 border border-zinc-850 p-3 rounded-xl space-y-1.5 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-zinc-500 font-sans">Serviço:</span>
+                        <span className="text-white font-bold">{selectedService.name}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-zinc-500">Agenda:</span>
+                        <span className="text-amber-500 font-mono font-bold">{selectedDate.split('-').reverse().join('/')} às {selectedTime}</span>
+                      </div>
+                      <div className="flex justify-between border-t border-zinc-900 pt-1.5 text-zinc-400">
+                        <span>Total:</span>
+                        <span className="font-mono font-bold text-white">R$ {selectedService.price.toFixed(2)}</span>
+                      </div>
+                    </div>
+
+                    <form onSubmit={handleConfirmReservation} className="space-y-3">
+                      <div className="space-y-1">
+                        <label className="text-xs text-zinc-500 block">Seu Nome Completo *</label>
+                        <div className="relative font-sans">
+                          <User className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
+                          <input
+                            type="text"
+                            required
+                            placeholder="Como quer ser chamado?"
+                            value={customerName}
+                            onChange={(e) => setCustomerName(e.target.value)}
+                            className="bg-zinc-950 border border-zinc-800 text-xs text-white pl-9 pr-4 py-2 w-full rounded-xl focus:outline-none focus:border-amber-500/50"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs text-zinc-500 block">WhatsApp ou Celular *</label>
+                        <div className="relative">
+                          <Phone className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
+                          <input
+                            type="text"
+                            required
+                            placeholder="(11) 99999-8888"
+                            value={customerWhatsApp}
+                            onChange={(e) => setCustomerWhatsApp(e.target.value)}
+                            className="bg-zinc-950 border border-zinc-800 text-xs text-white pl-9 pr-4 py-2 w-full rounded-xl focus:outline-none focus:border-amber-500/50"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs text-zinc-500 block font-sans">Algum recado para o barbeiro? (Opcional)</label>
+                        <textarea
+                          rows={2}
+                          placeholder="Alguma observação, detalhe do corte, etc..."
+                          value={bookingNotes}
+                          onChange={(e) => setBookingNotes(e.target.value)}
+                          className="bg-zinc-950 border border-zinc-800 text-xs text-white px-3 py-2 w-full rounded-xl focus:outline-none focus:border-amber-500/50"
+                        />
+                      </div>
+
+                      <div className="flex justify-between items-center pt-3 border-t border-zinc-850">
+                        <span className="text-[10px] text-zinc-500 flex gap-1 items-center">
+                          <AlertCircle className="h-3.5 w-3.5" /> Faremos sua reserva imediata.
+                        </span>
+                        
+                        <button
+                          type="submit"
+                          disabled={isSubmitting}
+                          className="bg-amber-500 hover:bg-amber-400 text-zinc-950 px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow cursor-pointer"
+                        >
+                          {isSubmitting ? "Cadastrando..." : "Confirmar Agendamento 💈"}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+
+                {/* STEP 4 IN OVERLAY: SUCCESS CONFIRMATION */}
+                {step === 4 && successBooking && (
+                  <div className="space-y-4 text-center py-4 animate-in fade-in zoom-in duration-300" id="step-4-success-block">
+                    <div className="mx-auto bg-emerald-500/10 text-emerald-500 p-3.5 rounded-full w-fit border-2 border-emerald-500/20 shadow">
+                      <Check className="h-8 w-8 animate-bounce" />
+                    </div>
+
+                    <div>
+                      <h3 className="text-base font-bold text-white">Agendamento Realizado com Sucesso!</h3>
+                      <p className="text-xs text-zinc-400 mt-1">Sua vaga está reservada em nosso sistema com sucesso.</p>
+                    </div>
+
+                    <div className="bg-zinc-950 border border-zinc-850 text-left p-4 rounded-xl space-y-2 text-xs max-w-sm mx-auto">
+                      <div>
+                        <span className="text-zinc-500 block text-[10px] uppercase">Serviço:</span>
+                        <strong className="text-white text-sm block mt-0.5">{successBooking.serviceName}</strong>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4 border-t border-zinc-900 pt-2 font-sans">
+                        <div>
+                          <span className="text-zinc-500 block text-[10px] uppercase">Data:</span>
+                          <strong className="text-amber-500 font-mono text-xs block mt-0.5">{successBooking.date.split('-').reverse().join('/')}</strong>
+                        </div>
+                        <div>
+                          <span className="text-zinc-500 block text-[10px] uppercase font-sans">Horário:</span>
+                          <strong className="text-amber-500 font-mono text-xs block mt-0.5">{successBooking.time}</strong>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-2 text-[10px] text-zinc-400 border-t border-zinc-900 pt-2">
+                        <MapPin className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <strong>{settings.name}</strong>
+                          <p className="mt-0.5 text-zinc-500">{settings.address}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-zinc-850 flex flex-col gap-2 font-sans">
+                      <button
+                        type="button"
+                        onClick={resetScheduleWizard}
+                        className="bg-amber-500 hover:bg-amber-400 text-zinc-950 px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow w-full"
+                      >
+                        Pronto! Voltar para os Serviços
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { resetScheduleWizard(); setActiveSubTab('lookup'); }}
+                        className="bg-zinc-950 hover:bg-zinc-900 text-zinc-400 hover:text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition-all border border-zinc-800 w-full"
+                      >
+                        Ir para Meus Agendamentos
+                      </button>
+                    </div>
+                  </div>
+                )}
+
               </div>
             </div>
           )}
