@@ -1,8 +1,10 @@
 {
   "version": 2,
-  "cleanUrls": true,
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/admin", "destination": "/index.html" },
+    { "source": "/consultar", "destination": "/index.html" },
+    { "source": "/agendar", "destination": "/index.html" },
+    { "source": "/((?!assets/|.*\\..*).*)$", "destination": "/index.html" }
   ],
   "headers": [
     {
