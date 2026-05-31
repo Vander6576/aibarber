@@ -467,10 +467,10 @@ export default function App() {
             <section className="bg-zinc-900/30 border border-white/[0.03] rounded-3xl p-6 sm:p-10 relative overflow-hidden text-center md:text-left shadow-2xl">
               <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-500/5 via-transparent to-transparent pointer-events-none"></div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-                <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+                <div className="md:col-span-7 space-y-6">
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-full text-[10px] font-bold tracking-wider uppercase">
-                    <Sparkles className="h-3.5 w-3.5" /> Agendamento descomplicado
+                    <Sparkles className="h-3.5 w-3.5 animate-pulse" /> Agendamento descomplicado
                   </span>
                   
                   <h2 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-white leading-tight">
@@ -482,7 +482,7 @@ export default function App() {
                   </p>
                   
                   <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                    <div className="flex items-center gap-2.5 text-xs text-zinc-400 bg-zinc-950 border border-zinc-900 p-3 rounded-2xl flex-1">
+                    <div className="flex items-center gap-2.5 text-xs text-zinc-400 bg-zinc-950/90 border border-zinc-900 p-3.5 rounded-2xl flex-1 shadow-md shadow-black/10">
                       <MapPin className="h-4 w-4 text-amber-500 flex-shrink-0" />
                       <div className="truncate text-left">
                         <strong className="text-zinc-300 block">Endereço</strong>
@@ -490,7 +490,7 @@ export default function App() {
                       </div>
                     </div>
                     
-                    <div className="flex items-center gap-2.5 text-xs text-zinc-400 bg-zinc-950 border border-zinc-900 p-3 rounded-2xl flex-1">
+                    <div className="flex items-center gap-2.5 text-xs text-zinc-400 bg-zinc-950/90 border border-zinc-900 p-3.5 rounded-2xl flex-1 shadow-md shadow-black/10">
                       <Phone className="h-4 w-4 text-amber-500 flex-shrink-0" />
                       <div className="text-left">
                         <strong className="text-zinc-300 block">Fale Conosco</strong>
@@ -501,26 +501,26 @@ export default function App() {
                 </div>
 
                 {/* COLUNA DE ATALHO EXPLICATIVO */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-zinc-955 border border-zinc-900 p-4 rounded-2xl space-y-1.5">
-                    <span className="text-amber-500 font-mono text-xs font-bold uppercase tracking-wider block">Passo 01</span>
-                    <h4 className="text-xs font-bold text-white uppercase">Selecione o Serviço</h4>
-                    <p className="text-[10px] text-zinc-400">Escolha as melhores opções do nosso catálogo premium.</p>
+                <div className="md:col-span-5 grid grid-cols-2 gap-3.5">
+                  <div className="bg-zinc-950/85 border border-zinc-900 hover:border-amber-500/30 transition-all duration-300 p-4 rounded-2xl space-y-2 shadow-lg shadow-black/20">
+                    <span className="text-amber-500 font-mono text-[9px] font-extrabold uppercase tracking-widest block">Passo 01</span>
+                    <h4 className="text-xs font-bold text-white uppercase tracking-tight">Selecione o Serviço</h4>
+                    <p className="text-[10px] text-zinc-400 leading-normal">Escolha as melhores opções do nosso catálogo premium.</p>
                   </div>
-                  <div className="bg-zinc-955 border border-zinc-900 p-4 rounded-2xl space-y-1.5">
-                    <span className="text-amber-500 font-mono text-xs font-bold uppercase tracking-wider block">Passo 02</span>
-                    <h4 className="text-xs font-bold text-white uppercase">Hora e Dia</h4>
-                    <p className="text-[10px] text-zinc-400">Slots limpos baseados sob o fuso de Brasília.</p>
+                  <div className="bg-zinc-950/85 border border-zinc-900 hover:border-amber-500/30 transition-all duration-300 p-4 rounded-2xl space-y-2 shadow-lg shadow-black/20">
+                    <span className="text-amber-500 font-mono text-[9px] font-extrabold uppercase tracking-widest block">Passo 02</span>
+                    <h4 className="text-xs font-bold text-white uppercase tracking-tight">Hora e Dia</h4>
+                    <p className="text-[10px] text-zinc-400 leading-normal">Slots limpos baseados sob os fusos disponíveis.</p>
                   </div>
-                  <div className="bg-zinc-955 border border-zinc-900 p-4 rounded-2xl space-y-1.5">
-                    <span className="text-amber-500 font-mono text-xs font-bold uppercase tracking-wider block">Passo 03</span>
-                    <h4 className="text-xs font-bold text-white uppercase">Identifique-se</h4>
-                    <p className="text-[10px] text-zinc-400">Preencha seu WhatsApp para sincronizar o contato.</p>
+                  <div className="bg-zinc-950/85 border border-zinc-900 hover:border-amber-500/30 transition-all duration-300 p-4 rounded-2xl space-y-2 shadow-lg shadow-black/20">
+                    <span className="text-amber-500 font-mono text-[9px] font-extrabold uppercase tracking-widest block">Passo 03</span>
+                    <h4 className="text-xs font-bold text-white uppercase tracking-tight">Identifique-se</h4>
+                    <p className="text-[10px] text-zinc-400 leading-normal">Preencha seu WhatsApp para sincronizar o contato.</p>
                   </div>
-                  <div className="bg-zinc-955 border border-zinc-900 p-4 rounded-2xl space-y-1.5">
-                    <span className="text-amber-500 font-mono text-xs font-bold uppercase tracking-wider block">Passo 04</span>
-                    <h4 className="text-xs font-bold text-white uppercase">Confirmado!</h4>
-                    <p className="text-[10px] text-zinc-400">Seu horário fica bloqueado em tempo real na nuvem.</p>
+                  <div className="bg-zinc-950/85 border border-zinc-900 hover:border-amber-500/30 transition-all duration-300 p-4 rounded-2xl space-y-2 shadow-lg shadow-black/20">
+                    <span className="text-amber-500 font-mono text-[9px] font-extrabold uppercase tracking-widest block">Passo 04</span>
+                    <h4 className="text-xs font-bold text-white uppercase tracking-tight">Confirmado!</h4>
+                    <p className="text-[10px] text-zinc-400 leading-normal">Seu horário fica bloqueado em tempo real na nuvem.</p>
                   </div>
                 </div>
               </div>
