@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { dbStore } from './dbStore';
-import { isFirebaseEnabled, auth } from './firebase';
-import { isSupabaseEnabled, supabase } from './supabase';
-import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { isSupabaseEnabled, supabase, isSupabaseOffline } from './supabase';
 import { Service, Booking, Client, Transaction, BarberSettings, ViewType, AdminTabType } from './types';
 
 // Componentes da Área Administrativa
@@ -60,8 +58,10 @@ export default function App() {
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [isRegisterMode, setIsRegisterMode] = useState(false);
+  const [isRecoveryMode, setIsRecoveryMode] = useState(false);
+  const [recoverySuccessMessage, setRecoverySuccessMessage] = useState("");
   const [authError, setAuthError] = useState("");
-  const [firebaseUser, setFirebaseUser] = useState<any>(null);
+  const [adminUser, setAdminUser] = useState<any>(null);
 
   // --- ESTADO GLOBAL DA BANCO DE DADOS ---
   const [settings, setSettings] = useState<BarberSettings | null>(null);
@@ -70,6 +70,19 @@ export default function App() {
   const [clients, setClients] = useState<Client[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDbOffline, setIsDbOffline] = useState(isSupabaseOffline);
+
+  // --- CONNECTIVITY STATUS SYNCHRONIZATION ---
+  useEffect(() => {
+    setIsDbOffline(isSupabaseOffline);
+    const handleSupabaseOfflineChange = (e: any) => {
+      setIsDbOffline(e.detail);
+    };
+    window.addEventListener('supabase-offline-change', handleSupabaseOfflineChange);
+    return () => {
+      window.removeEventListener('supabase-offline-change', handleSupabaseOfflineChange);
+    };
+  }, []);
 
   // --- REAL-TIME ROUTING TRACKING ---
   useEffect(() => {
@@ -114,8 +127,8 @@ export default function App() {
       const srvsData = await dbStore.getServices();
       setServices(srvsData);
 
-      // 2. Só carrega as coleções administrativas restritas se o admin estiver logado ou em modo Sandbox sem Firebase/Supabase
-      if ((!isFirebaseEnabled && !isSupabaseEnabled) || isAdminLoggedIn) {
+      // 2. Só carrega as coleções administrativas restritas se o admin estiver logado ou em modo Sandbox sem Supabase
+      if (!isSupabaseEnabled || isAdminLoggedIn) {
         try {
           const bksData = await dbStore.getBookings();
           setBookings(bksData || []);
@@ -153,7 +166,7 @@ export default function App() {
     loadDatabase();
   }, [isAdminLoggedIn]);
 
-  // --- SINCRONIZAÇÃO DE AUTENTICAÇÃO COM SUPABASE, FIREBASE OU LOCAL ---
+  // --- SINCRONIZAÇÃO DE AUTENTICAÇÃO COM SUPABASE OU LOCAL ---
   useEffect(() => {
     const isLocalAuth = localStorage.getItem('barber_admin_auth') === 'true';
     if (isLocalAuth) {
@@ -169,10 +182,10 @@ export default function App() {
           return;
         }
         if (session && session.user) {
-          setFirebaseUser(session.user);
+          setAdminUser(session.user);
           setIsAdminLoggedIn(true);
         } else {
-          setFirebaseUser(null);
+          setAdminUser(null);
           setIsAdminLoggedIn(false);
         }
       });
@@ -184,10 +197,10 @@ export default function App() {
           return;
         }
         if (session && session.user) {
-          setFirebaseUser(session.user);
+          setAdminUser(session.user);
           setIsAdminLoggedIn(true);
         } else {
-          setFirebaseUser(null);
+          setAdminUser(null);
           setIsAdminLoggedIn(false);
         }
       });
@@ -195,21 +208,6 @@ export default function App() {
       return () => {
         subscription.unsubscribe();
       };
-    } else if (isFirebaseEnabled && auth) {
-      const unsubscribe = onAuthStateChanged(auth, (user) => {
-        if (localStorage.getItem('barber_admin_auth') === 'true') {
-          setIsAdminLoggedIn(true);
-          return;
-        }
-        if (user) {
-          setFirebaseUser(user);
-          setIsAdminLoggedIn(true);
-        } else {
-          setFirebaseUser(null);
-          setIsAdminLoggedIn(false);
-        }
-      });
-      return unsubscribe;
     } else {
       // Login persistido localmente em modo sandbox
       setIsAdminLoggedIn(isLocalAuth);
@@ -290,6 +288,7 @@ export default function App() {
 
     if (isSupabaseEnabled && supabase) {
       try {
+        console.log("[SUPABASE AUTH] Iniciando login com email/senha...");
         const { error } = await supabase.auth.signInWithPassword({
           email: emailStr,
           password: authPassword
@@ -299,16 +298,6 @@ export default function App() {
         }
       } catch (err: any) {
         setAuthError("Erro de acesso Supabase: E-mail ou senha inválidos.");
-      }
-    } else if (isFirebaseEnabled && auth) {
-      try {
-        await signInWithEmailAndPassword(auth, emailStr, authPassword);
-      } catch (err: any) {
-        if (err.message && err.message.includes("operation-not-allowed")) {
-          setAuthError("Erro na nuvem: O provedor de e-mail e senha não está habilitado no Firebase Console. Para testar sem bloqueios, utilize o botão 'Entrar com 1-Clique demo-bypass' abaixo!");
-        } else {
-          setAuthError("Erro de acesso Cloud: E-mail ou senha inválidos. Se possuir um novo projeto Firebase, certifique-se de ativar o e-mail/senha no console, ou entre usando o botão demo-bypass abaixo!");
-        }
       }
     } else {
       // Modo Local sandbox: aceita demo@barbearia.com / demo123 (ou qualquer e-mail para robustez)
@@ -329,7 +318,7 @@ export default function App() {
     }
   };
 
-  // Criação de novos usuários administradores no Firebase
+  // Criação de novos usuários administradores
   const handleAdminRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError("");
@@ -354,17 +343,6 @@ export default function App() {
       } catch (err: any) {
         setAuthError("Erro Supabase: " + err.message);
       }
-    } else if (isFirebaseEnabled && auth) {
-      try {
-        await createUserWithEmailAndPassword(auth, authEmail, authPassword);
-        setIsRegisterMode(false);
-      } catch (err: any) {
-        if (err.message && err.message.includes("operation-not-allowed")) {
-          setAuthError("Erro na nuvem: O provedor de e-mail e senha não está habilitado no Firebase Console. Para testar sem bloqueios, utilize o botão 'Entrar por Modo de Teste Local (Demo/Bypass)' abaixo!");
-        } else {
-          setAuthError("Erro na nuvem: " + err.message);
-        }
-      }
     } else {
       // Criação rápida em modo local
       localStorage.setItem('barber_admin_auth', 'true');
@@ -375,37 +353,72 @@ export default function App() {
     }
   };
 
+  // Envio de link para recuperação de senha administrativa
+  const handlePasswordRecovery = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError("");
+    setRecoverySuccessMessage("");
+
+    const emailStr = authEmail.trim();
+    if (!emailStr) {
+      setAuthError("Preencha o campo de e-mail de trabalho para receber as diretrizes de recuperação!");
+      return;
+    }
+
+    if (isSupabaseEnabled && supabase) {
+      try {
+        console.log("[SUPABASE RECOVERY] Solicitando link de reset de senha para o e-mail:", emailStr);
+        const { error } = await supabase.auth.resetPasswordForEmail(emailStr, {
+          redirectTo: window.location.origin
+        });
+        if (error) throw error;
+        console.log("[SUPABASE RECOVERY SUCCESS] E-mail enviado com sucesso!");
+        setRecoverySuccessMessage(`Link de redefinição de senha enviado para "${emailStr}". Verifique sua caixa de entrada.`);
+      } catch (err: any) {
+        console.error("[SUPABASE RECOVERY ERROR] Erro ao enviar reset de e-mail no Supabase:", err);
+        setAuthError("Erro de recuperação Supabase: " + (err.message || err));
+      }
+    } else {
+      console.warn("[RECOVERY METHOD] Redefinição de senha indisponível no modo local/bypass.");
+      setAuthError("A redefinição de senha está indisponível porque nenhum provedor em nuvem está habilitado ou configurado.");
+    }
+  };
+
   const handleAdminLogout = async () => {
     setAuthError("");
     localStorage.removeItem('barber_admin_auth');
-    setFirebaseUser(null);
+    setAdminUser(null);
     setIsAdminLoggedIn(false);
 
     try {
       if (isSupabaseEnabled && supabase) {
         await supabase.auth.signOut();
-      } else if (isFirebaseEnabled && auth) {
-        await signOut(auth);
       }
     } catch (err) {
       console.error("Erro ao efetuar logout:", err);
     }
   };
 
-  // Login usando o provedor do Google no Firebase (Popup)
+  // Login usando o provedor do Google no Supabase
   const handleGoogleLogin = async () => {
     setAuthError("");
-    if (isFirebaseEnabled && auth) {
+    if (isSupabaseEnabled && supabase) {
+      console.log("[SUPABASE GOOGLE SIGNIN] Iniciando fluxo de autenticação do Google...");
       try {
-        const provider = new GoogleAuthProvider();
-        await signInWithPopup(auth, provider);
-        // O onAuthStateChanged tratará o estado do login
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: window.location.origin
+          }
+        });
+        if (error) throw error;
       } catch (err: any) {
-        console.error("Erro no login com Google:", err);
-        setAuthError("Erro ao fazer login com Google: " + (err.message || "Tente novamente."));
+        console.error("[SUPABASE GOOGLE SIGNIN ERROR] Falha no login via Google:", err);
+        setAuthError("Erro Google Supabase: " + (err.message || err));
       }
     } else {
-      setAuthError("O Firebase não está habilitado ou configurado para realizar o login com Google.");
+      console.warn("[GOOGLE SIGNIN] Operação abortada. Nenhum provedor de nuvem ativo.");
+      setAuthError("Nenhum provedor de nuvem ativo para autenticação Google.");
     }
   };
 
@@ -568,124 +581,202 @@ export default function App() {
               <div className="bg-[#121212] border border-[#ffffff07] p-8 rounded-3xl shadow-2xl relative overflow-hidden w-full max-w-md space-y-6">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl pointer-events-none"></div>
                 
-                <div className="text-center space-y-2">
-                  <div className="inline-block bg-amber-500 text-black p-3 rounded-2xl border border-amber-600 mb-2 shadow-lg shadow-amber-500/10">
-                    <KeyRound className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-amber-500 uppercase tracking-widest font-mono">BarberConnect SaaS</span>
-                    <h2 className="text-xl font-bold tracking-tight text-white mt-1">Painel Corporativo</h2>
-                    <p className="text-xs text-zinc-400 mt-1">Efetue login administrativo para monitorar movimentações financeiras, catálogo e CRM de clientes.</p>
-                  </div>
-                </div>
-
-                {authError && (
-                  <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-xs p-3.5 rounded-xl flex items-start gap-1.5 leading-tight font-sans">
-                    <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
-                    <span>{authError}</span>
-                  </div>
-                )}
-
-                {/* BOTÃO DO GOOGLE (PROVEDOR ATIVO NO SEU FIREBASE CONSOLE) */}
-                {isFirebaseEnabled && !isRegisterMode && (
-                  <div className="space-y-4 pt-1">
-                    <button
-                      type="button"
-                      onClick={handleGoogleLogin}
-                      className="w-full bg-white hover:bg-zinc-100 text-zinc-950 py-3 px-4 rounded-xl font-bold flex items-center justify-center gap-2.5 transition-all shadow-lg text-xs cursor-pointer active:scale-[0.98]"
-                    >
-                      <svg className="h-4 w-4" viewBox="0 0 24 24" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
-                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
-                      </svg>
-                      Entrar com o Google (Recomendado)
-                    </button>
-                    
-                    <div className="relative flex py-1 items-center">
-                      <div className="flex-grow border-t border-zinc-900"></div>
-                      <span className="flex-shrink mx-4 text-zinc-500 font-mono text-[9px] uppercase tracking-wider">ou entrada manual / livre</span>
-                      <div className="flex-grow border-t border-zinc-900"></div>
+                {isRecoveryMode ? (
+                  <>
+                    <div className="text-center space-y-2">
+                      <div className="inline-block bg-amber-500 text-black p-3 rounded-2xl border border-amber-600 mb-2 shadow-lg shadow-amber-500/10">
+                        <KeyRound className="h-5 w-5 animate-pulse" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-amber-500 uppercase tracking-widest font-mono">BarberConnect SaaS</span>
+                        <h2 className="text-xl font-bold tracking-tight text-white mt-1">Recuperação de Senha</h2>
+                        <p className="text-xs text-zinc-400 mt-1">Insira seu e-mail administrativo para enviarmos os passos de redefinição de acesso.</p>
+                      </div>
                     </div>
-                  </div>
-                )}
 
-                <form onSubmit={isRegisterMode ? handleAdminRegister : handleAdminLogin} className="space-y-4 font-sans text-sm">
-                  <div className="space-y-1">
-                    <label className="text-xs text-zinc-400 block font-medium">E-mail de Trabalho</label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
-                      <input
-                        type="email"
-                        required
-                        value={authEmail}
-                        onChange={(e) => setAuthEmail(e.target.value)}
-                        placeholder="barbeiro@seusite.com"
-                        className="bg-black border border-zinc-900 text-white text-xs rounded-xl pl-9 pr-4 py-2.5 w-full focus:outline-none focus:border-amber-500/50 font-sans"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs text-zinc-400 block font-medium">Senha Operacional</label>
-                    <div className="relative">
-                      <KeyRound className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
-                      <input
-                        type="password"
-                        required
-                        value={authPassword}
-                        onChange={(e) => setAuthPassword(e.target.value)}
-                        placeholder="Mínimo 6 dígitos"
-                        className="bg-black border border-zinc-900 text-white text-xs rounded-xl pl-9 pr-4 py-2.5 w-full focus:outline-none focus:border-amber-500/50 font-mono"
-                      />
-                    </div>
-                  </div>
-
-                  {!isRegisterMode && (
-                    <button
-                      type="submit"
-                      className="w-full bg-amber-500 hover:bg-amber-400 text-zinc-950 py-3 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all shadow-md mt-6 text-xs cursor-pointer"
-                    >
-                      <LogIn className="h-4 w-4" /> Entrar no Sistema
-                    </button>
-                  )}
-
-                  {isRegisterMode && (
-                    <button
-                      type="submit"
-                      className="w-full bg-emerald-500 hover:bg-emerald-400 text-black py-3 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all shadow-md mt-6 text-xs cursor-pointer"
-                    >
-                      <CheckCircle2 className="h-4 w-4" /> Confirmar Cadastro
-                    </button>
-                  )}
-                </form>
-
-                {/* BYPASS DEMO MODE MOCK DESIGNER */}
-                <div className="bg-black border border-zinc-900 p-4 rounded-2xl text-center space-y-2">
-                  <div className="text-[11px] text-zinc-400 font-sans leading-relaxed">
-                    <strong className="text-amber-500">Bypass / Entrada de Demonstração:</strong> Se deseja realizar uma avaliação rápida e testes imediatos no painel operacional:
-                  </div>
-                  <div className="text-[9.5px] font-mono text-zinc-500 bg-zinc-955 py-1.5 rounded-lg border border-zinc-900">
-                    E-mail: <span className="text-zinc-300">demo@barbearia.com</span> • Senha: <span className="text-zinc-300">demo123</span>
-                  </div>
-                  <button
-                    onClick={handleQuickDemoLogin}
-                    className="text-xs text-amber-500 hover:text-amber-400 font-bold flex items-center gap-1.5 mx-auto pt-1 hover:underline cursor-pointer"
-                  >
-                    Entrar com 1-Clique demo-bypass <ChevronRight className="h-4 w-4" />
-                  </button>
-                </div>
-
-                {/* REGISTER ALTERNATOR FOR FIREBASE/SUPABASE */}
-                {(isFirebaseEnabled || isSupabaseEnabled) && (
-                  <div className="text-center pt-2 text-xs text-zinc-400">
-                    {isRegisterMode ? (
-                      <span>Já possui cadastro? <button onClick={() => { setIsRegisterMode(false); setAuthError(""); }} className="text-amber-500 font-bold hover:underline cursor-pointer">Fazer Login</button></span>
-                    ) : (
-                      <span>Primeiro acesso? <button onClick={() => { setIsRegisterMode(true); setAuthError(""); }} className="text-amber-500 font-bold hover:underline cursor-pointer">Cadastrar Administrador</button></span>
+                    {authError && (
+                      <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-xs p-3.5 rounded-xl flex items-start gap-1.5 leading-tight font-sans">
+                        <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
+                        <span>{authError}</span>
+                      </div>
                     )}
-                  </div>
+
+                    {recoverySuccessMessage && (
+                      <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs p-3.5 rounded-xl flex items-start gap-1.5 leading-tight font-sans">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-400 flex-shrink-0" />
+                        <span>{recoverySuccessMessage}</span>
+                      </div>
+                    )}
+
+                    <form onSubmit={handlePasswordRecovery} className="space-y-4 font-sans text-sm">
+                      <div className="space-y-1">
+                        <label className="text-xs text-zinc-400 block font-medium">E-mail Cadastrado</label>
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
+                          <input
+                            type="email"
+                            required
+                            value={authEmail}
+                            onChange={(e) => setAuthEmail(e.target.value)}
+                            placeholder="seuemail@exemplo.com"
+                            className="bg-black border border-zinc-900 text-white text-xs rounded-xl pl-9 pr-4 py-2.5 w-full focus:outline-none focus:border-amber-500/50 font-sans"
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="w-full bg-amber-500 hover:bg-amber-400 text-zinc-950 py-3 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all shadow-md mt-6 text-xs cursor-pointer"
+                      >
+                        <Mail className="h-4 w-4" /> Enviar Link de Recuperação
+                      </button>
+                    </form>
+
+                    <div className="text-center pt-2 text-xs text-zinc-400">
+                      <button
+                        type="button"
+                        onClick={() => { setIsRecoveryMode(false); setAuthError(""); setRecoverySuccessMessage(""); }}
+                        className="text-amber-500 font-bold hover:underline cursor-pointer"
+                      >
+                        Voltar para o Login
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-center space-y-2">
+                      <div className="inline-block bg-amber-500 text-black p-3 rounded-2xl border border-amber-600 mb-2 shadow-lg shadow-amber-500/10">
+                        <KeyRound className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-amber-500 uppercase tracking-widest font-mono">BarberConnect SaaS</span>
+                        <h2 className="text-xl font-bold tracking-tight text-white mt-1">Painel Corporativo</h2>
+                        <p className="text-xs text-zinc-400 mt-1">Efetue login administrativo para monitorar movimentações financeiras, catálogo e CRM de clientes.</p>
+                      </div>
+                    </div>
+
+                    {authError && (
+                      <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-xs p-3.5 rounded-xl flex items-start gap-1.5 leading-tight font-sans">
+                        <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
+                        <span>{authError}</span>
+                      </div>
+                    )}
+
+                    {/* BOTÃO DO GOOGLE (PROVEDOR ATIVO NO SEU SUPABASE CONSOLE) */}
+                    {isSupabaseEnabled && !isRegisterMode && (
+                      <div className="space-y-4 pt-1">
+                        <button
+                          type="button"
+                          onClick={handleGoogleLogin}
+                          className="w-full bg-white hover:bg-zinc-100 text-zinc-950 py-3 px-4 rounded-xl font-bold flex items-center justify-center gap-2.5 transition-all shadow-lg text-xs cursor-pointer active:scale-[0.98]"
+                        >
+                          <svg className="h-4 w-4" viewBox="0 0 24 24" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+                            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+                          </svg>
+                          Entrar com o Google (Recomendado)
+                        </button>
+                        
+                        <div className="relative flex py-1 items-center">
+                          <div className="flex-grow border-t border-zinc-900"></div>
+                          <span className="flex-shrink mx-4 text-zinc-500 font-mono text-[9px] uppercase tracking-wider">ou entrada manual / livre</span>
+                          <div className="flex-grow border-t border-zinc-900"></div>
+                        </div>
+                      </div>
+                    )}
+
+                    <form onSubmit={isRegisterMode ? handleAdminRegister : handleAdminLogin} className="space-y-4 font-sans text-sm">
+                      <div className="space-y-1">
+                        <label className="text-xs text-zinc-400 block font-medium">E-mail de Trabalho</label>
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
+                          <input
+                            type="email"
+                            required
+                            value={authEmail}
+                            onChange={(e) => setAuthEmail(e.target.value)}
+                            placeholder="barbeiro@seusite.com"
+                            className="bg-black border border-zinc-900 text-white text-xs rounded-xl pl-9 pr-4 py-2.5 w-full focus:outline-none focus:border-amber-500/50 font-sans"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs text-zinc-400 block font-medium">Senha Operacional</label>
+                        <div className="relative">
+                          <KeyRound className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
+                          <input
+                            type="password"
+                            required
+                            value={authPassword}
+                            onChange={(e) => setAuthPassword(e.target.value)}
+                            placeholder="Mínimo 6 dígitos"
+                            className="bg-black border border-zinc-900 text-white text-xs rounded-xl pl-9 pr-4 py-2.5 w-full focus:outline-none focus:border-amber-500/50 font-mono"
+                          />
+                        </div>
+                        
+                        {/* LINK RECUPERAÇÃO DE SENHA */}
+                        {!isRegisterMode && (
+                          <div className="text-right pt-1">
+                            <button
+                              type="button"
+                              onClick={() => { setIsRecoveryMode(true); setAuthError(""); setRecoverySuccessMessage(""); }}
+                              className="text-amber-500 hover:text-amber-400 text-[10px] font-bold transition hover:underline cursor-pointer"
+                            >
+                              Esqueceu sua senha?
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {!isRegisterMode && (
+                        <button
+                          type="submit"
+                          className="w-full bg-amber-500 hover:bg-amber-400 text-zinc-950 py-3 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all shadow-md mt-6 text-xs cursor-pointer"
+                        >
+                          <LogIn className="h-4 w-4" /> Entrar no Sistema
+                        </button>
+                      )}
+
+                      {isRegisterMode && (
+                        <button
+                          type="submit"
+                          className="w-full bg-emerald-500 hover:bg-emerald-400 text-black py-3 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all shadow-md mt-6 text-xs cursor-pointer"
+                        >
+                          <CheckCircle2 className="h-4 w-4" /> Confirmar Cadastro
+                        </button>
+                      )}
+                    </form>
+
+                    {/* BYPASS DEMO MODE MOCK DESIGNER */}
+                    <div className="bg-black border border-zinc-900 p-4 rounded-2xl text-center space-y-2">
+                      <div className="text-[11px] text-zinc-400 font-sans leading-relaxed">
+                        <strong className="text-amber-500">Bypass / Entrada de Demonstração:</strong> Se deseja realizar uma avaliação rápida e testes imediatos no painel operacional:
+                      </div>
+                      <div className="text-[9.5px] font-mono text-zinc-500 bg-zinc-955 py-1.5 rounded-lg border border-zinc-900">
+                        E-mail: <span className="text-zinc-300">demo@barbearia.com</span> • Senha: <span className="text-zinc-300">demo123</span>
+                      </div>
+                      <button
+                        onClick={handleQuickDemoLogin}
+                        className="text-xs text-amber-500 hover:text-amber-400 font-bold flex items-center gap-1.5 mx-auto pt-1 hover:underline cursor-pointer"
+                      >
+                        Entrar com 1-Clique demo-bypass <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    {/* REGISTER ALTERNATOR FOR SUPABASE */}
+                    {isSupabaseEnabled && (
+                      <div className="text-center pt-2 text-xs text-zinc-400">
+                        {isRegisterMode ? (
+                          <span>Já possui cadastro? <button onClick={() => { setIsRegisterMode(false); setAuthError(""); }} className="text-amber-500 font-bold hover:underline cursor-pointer">Fazer Login</button></span>
+                        ) : (
+                          <span>Primeiro acesso? <button onClick={() => { setIsRegisterMode(true); setAuthError(""); }} className="text-amber-500 font-bold hover:underline cursor-pointer">Cadastrar Administrador</button></span>
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
 
               </div>
@@ -702,16 +793,20 @@ export default function App() {
                 {/* Active user header block */}
                 <div className="border-b border-zinc-905 pb-5 space-y-1">
                   <span className="text-[9px] uppercase font-mono text-zinc-500 tracking-widest font-semibold">Conta Operacional</span>
-                  <h4 className="text-xs font-bold text-white truncate max-w-[240px] font-sans">{firebaseUser?.email || "Administrador Geral"}</h4>
+                  <h4 className="text-xs font-bold text-white truncate max-w-[240px] font-sans">{adminUser?.email || "Administrador Geral"}</h4>
                   <div className="inline-flex items-center gap-1.5 pt-1.5">
                     <span className="text-[9px] bg-zinc-955 border border-zinc-900 text-amber-500 px-2 py-0.5 rounded font-mono font-bold">Barbeiro Master</span>
                     
-                    {/* Status Indicador para Nuvem */}
-                    {isFirebaseEnabled ? (
-                      <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" title="Firestore Integrado" />
-                    ) : (
-                      <span className="h-2 w-2 rounded-full bg-amber-500" title="Modo Sandbox Local" />
-                    )}
+                     {/* Status Indicador para Nuvem */}
+                     {isSupabaseEnabled && supabase ? (
+                       isDbOffline ? (
+                         <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" title="Supabase Desconectado/Offline" />
+                       ) : (
+                         <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" title="Supabase Conectado" />
+                       )
+                     ) : (
+                       <span className="h-2 w-2 rounded-full bg-amber-500" title="Modo Local Sandbox" />
+                     )}
                   </div>
                 </div>
 
@@ -797,6 +892,14 @@ export default function App() {
 
               {/* CONTEÚDO PRINCIPAL DO WORKSPACE INTEGRADO */}
               <div className="flex-1 min-w-0" id="admin-viewports-box">
+                {isDbOffline && (
+                  <div className="mb-6 bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 flex gap-3 text-amber-500 text-xs leading-relaxed" id="db-offline-alert-banner">
+                    <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="font-bold">{isSupabaseEnabled ? 'Supabase' : 'Firestore'} em Modo Offline Local:</strong> O banco de dados em nuvem está temporariamente inacessível ou pendente de chave/tabelas. Suas alterações estão sendo tratadas e salvas em contingência local no navegador. O sistema continua funcionando 100% no Modo Local.
+                    </div>
+                  </div>
+                )}
                 {adminTab === 'dashboard' && (
                   <AdminDashboard
                     bookings={bookings}

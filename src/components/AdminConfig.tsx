@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { BarberSettings } from '../types';
 import { dbStore } from '../dbStore';
 import { Settings, HelpCircle, Shield, RotateCcw, AlertTriangle, Cloud, CloudOff, Save, Check, Database, Copy } from 'lucide-react';
-import { isFirebaseEnabled } from '../firebase';
 import { isSupabaseEnabled } from '../supabase';
 
 const SUPABASE_MIGRATION_SQL = `-- Criar tabela de configurações da barbearia
@@ -200,7 +199,7 @@ export default function AdminConfig({ settings, onUpdateSettings }: ConfigProps)
           {/* PAINEL DE CONEXÃO DO BANCO DE DADOS */}
           <div className="bg-[#121212] border border-white/5 p-6 rounded-3xl shadow-xl space-y-4" id="db-status-panel">
             <h4 className="text-sm font-display font-semibold text-white border-b border-white/5 pb-3 flex items-center gap-2">
-              <Shield className="h-4 w-4 text-amber-500" /> Conexão e Banco de Dados (Supabase / Cloud)
+              <Shield className="h-4 w-4 text-amber-500" /> Conexão e Banco de Dados (Supabase)
             </h4>
 
             {isSupabaseEnabled ? (
@@ -211,14 +210,6 @@ export default function AdminConfig({ settings, onUpdateSettings }: ConfigProps)
                   <p className="text-[11px] text-zinc-400 mt-1">
                     Seu sistema está conectado com sucesso à URL <strong>vvlhvkxjanpjxjeefzar.supabase.co</strong>. Os agendamentos, clientes, serviços, faturamentos e autenticações estão sendo sincronizados do PostgreSQL em tempo real de forma 100% segura.
                   </p>
-                </div>
-              </div>
-            ) : isFirebaseEnabled ? (
-              <div className="flex items-start gap-3 bg-emerald-500/5 p-4 rounded-xl border border-emerald-500/10" id="db-active-box">
-                <Cloud className="h-5 w-5 text-emerald-500 mt-0.5 flex-shrink-0 animate-pulse" />
-                <div>
-                  <h5 className="text-xs text-emerald-450 font-bold">Firestore Conectado e Ativo</h5>
-                  <p className="text-[11px] text-zinc-400 mt-1">Seu sistema está sincronizando todas as informações na nuvem em tempo real via Firebase.</p>
                 </div>
               </div>
             ) : (

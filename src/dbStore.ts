@@ -1,20 +1,74 @@
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  setDoc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  query,
-  where,
-  orderBy,
-  onSnapshot
-} from 'firebase/firestore';
-import { db, isFirebaseEnabled, handleFirestoreError, OperationType, auth } from './firebase';
-import { supabase, isSupabaseEnabled } from './supabase';
+import { supabase, isSupabaseEnabled, isSupabaseOffline, setSupabaseOffline } from './supabase';
 import { Service, Booking, Client, Transaction, BarberSettings } from './types';
+
+// Bypass/Desativado Firebase
+const isFirebaseEnabled = false;
+const db: any = null;
+const auth: any = null;
+const isFirestoreOffline = false;
+const setFirestoreOffline = (state?: boolean) => {};
+const handleFirestoreError = (error: any, operationType: any, path: any): never => {
+  throw error;
+};
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+const collection: any = null;
+const doc: any = null;
+const getDoc: any = null;
+const getDocs: any = null;
+const setDoc: any = null;
+const addDoc: any = null;
+const updateDoc: any = null;
+const deleteDoc: any = null;
+const query: any = null;
+const where: any = null;
+const orderBy: any = null;
+const onSnapshot: any = null;
+
+// Helper to intercept Firebase offline/network errors and gracefully return fallback local data
+function handleFirebaseOfflineOrError<T>(error: any, operation: string, fallbackAction: () => T): T | null {
+  const msg = (error?.message || String(error)).toLowerCase();
+  const isOffline = msg.includes('offline') || 
+                    msg.includes('failed-precondition') || 
+                    msg.includes('network') || 
+                    msg.includes('unreachable') || 
+                    msg.includes('unavailable') ||
+                    msg.includes('connection');
+  
+  if (isOffline) {
+    console.warn(`[FIREBASE GRACEFUL FALLBACK] O Firestore está offline/falcamente configurado durante "${operation}". Carregando fallback em localStorage.`);
+    setFirestoreOffline(true);
+    return fallbackAction();
+  }
+  return null;
+}
+
+// Helper to intercept Supabase offline/network errors and gracefully return fallback local data
+function handleSupabaseOfflineOrError<T>(error: any, operation: string, fallbackAction: () => T): T | null {
+  const msg = (error?.message || String(error)).toLowerCase();
+  const isOffline = msg.includes('offline') || 
+                    msg.includes('fetch failed') || 
+                    msg.includes('failed to fetch') || 
+                    msg.includes('network') || 
+                    msg.includes('unreachable') || 
+                    msg.includes('unavailable') ||
+                    msg.includes('connection') ||
+                    msg.includes('typeerror') ||
+                    msg.includes('failed-precondition');
+  
+  if (isOffline) {
+    console.warn(`[SUPABASE GRACEFUL FALLBACK] O Supabase está offline/falcamente configurado durante "${operation}". Carregando fallback em localStorage.`);
+    setSupabaseOffline(true);
+    return fallbackAction();
+  }
+  return null;
+}
 
 // ==========================================
 // MAPEAMENTOS DE DADOS PARA SUPABASE (camelCase <-> snake_case)
@@ -362,6 +416,11 @@ export const dbStore = {
           return DEFAULT_SETTINGS;
         }
       } catch (error) {
+        const fallback = handleFirebaseOfflineOrError(error, 'getSettings', () => {
+          const local = localStorage.getItem('barber_settings');
+          return local ? JSON.parse(local) : DEFAULT_SETTINGS;
+        });
+        if (fallback !== null) return fallback;
         handleFirestoreError(error, OperationType.GET, path);
       }
     } else {
@@ -387,6 +446,10 @@ export const dbStore = {
       try {
         await setDoc(doc(db, 'settings', 'barber'), settings);
       } catch (error) {
+        const fallback = handleFirebaseOfflineOrError(error, 'updateSettings', () => {
+          localStorage.setItem('barber_settings', JSON.stringify(settings));
+        });
+        if (fallback !== null) return;
         handleFirestoreError(error, OperationType.WRITE, path);
       }
     } else {
@@ -427,6 +490,11 @@ export const dbStore = {
         });
         return list;
       } catch (error) {
+        const fallback = handleFirebaseOfflineOrError(error, 'getServices', () => {
+          const local = localStorage.getItem('barber_services');
+          return local ? JSON.parse(local) : DEFAULT_SERVICES;
+        });
+        if (fallback !== null) return fallback;
         handleFirestoreError(error, OperationType.GET, path);
       }
     } else {
@@ -544,6 +612,11 @@ export const dbStore = {
         });
         return list;
       } catch (error) {
+        const fallback = handleFirebaseOfflineOrError(error, 'getBookings', () => {
+          const local = localStorage.getItem('barber_bookings');
+          return local ? JSON.parse(local) : [];
+        });
+        if (fallback !== null) return fallback;
         handleFirestoreError(error, OperationType.GET, path);
       }
     } else {
@@ -576,6 +649,12 @@ export const dbStore = {
         });
         return list;
       } catch (error) {
+        const fallback = handleFirebaseOfflineOrError(error, 'getBookingsByDate', () => {
+          const local = localStorage.getItem('barber_bookings');
+          const bookings = local ? JSON.parse(local) as Booking[] : [];
+          return bookings.filter(b => b.date === date);
+        });
+        if (fallback !== null) return fallback;
         handleFirestoreError(error, OperationType.GET, path);
       }
     } else {
@@ -609,6 +688,12 @@ export const dbStore = {
         });
         return list;
       } catch (error) {
+        const fallback = handleFirebaseOfflineOrError(error, 'getBookingsByWhatsApp', () => {
+          const local = localStorage.getItem('barber_bookings');
+          const bookings = local ? JSON.parse(local) as Booking[] : [];
+          return bookings.filter(b => b.clientWhatsApp.trim().replace(/\D/g, '') === cleanWhatsApp || b.clientWhatsApp === whatsapp);
+        });
+        if (fallback !== null) return fallback;
         handleFirestoreError(error, OperationType.GET, path);
       }
     } else {
@@ -669,6 +754,25 @@ export const dbStore = {
         }
         return newBooking;
       } catch (error) {
+        const fallback = handleFirebaseOfflineOrError(error, 'addBooking', async () => {
+          const list = await this.getBookings();
+          list.push(newBooking);
+          localStorage.setItem('barber_bookings', JSON.stringify(list));
+
+          // Transação associada
+          if (newBooking.status === 'concluido' && newBooking.paymentMethod) {
+            await this.addTransaction({
+              type: 'receita',
+              amount: newBooking.servicePrice,
+              date: newBooking.date,
+              description: `Atendimento - ${newBooking.clientName} (${newBooking.serviceName})`,
+              paymentMethod: newBooking.paymentMethod,
+              bookingId: newId
+            });
+          }
+          return newBooking;
+        });
+        if (fallback !== null) return await fallback;
         handleFirestoreError(error, OperationType.WRITE, path);
       }
     } else {
@@ -731,6 +835,12 @@ export const dbStore = {
       try {
         await updateDoc(doc(db, 'bookings', id), update as any);
       } catch (error) {
+        const fallback = handleFirebaseOfflineOrError(error, 'updateBooking', async () => {
+          const list = await this.getBookings();
+          const updated = list.map(item => item.id === id ? { ...item, ...update } : item);
+          localStorage.setItem('barber_bookings', JSON.stringify(updated));
+        });
+        if (fallback !== null) return await fallback;
         handleFirestoreError(error, OperationType.WRITE, path);
       }
     } else {
@@ -758,6 +868,12 @@ export const dbStore = {
       try {
         await deleteDoc(doc(db, 'bookings', id));
       } catch (error) {
+        const fallback = handleFirebaseOfflineOrError(error, 'deleteBooking', async () => {
+          const list = await this.getBookings();
+          const updated = list.filter(item => item.id !== id);
+          localStorage.setItem('barber_bookings', JSON.stringify(updated));
+        });
+        if (fallback !== null) return await fallback;
         handleFirestoreError(error, OperationType.DELETE, path);
       }
     } else {
@@ -791,6 +907,11 @@ export const dbStore = {
         });
         return list;
       } catch (error) {
+        const fallback = handleFirebaseOfflineOrError(error, 'getClients', () => {
+          const local = localStorage.getItem('barber_clients');
+          return local ? JSON.parse(local) : [];
+        });
+        if (fallback !== null) return fallback;
         handleFirestoreError(error, OperationType.GET, path);
       }
     } else {
@@ -824,6 +945,13 @@ export const dbStore = {
         await setDoc(doc(db, 'clients', newId), newClient);
         return newClient;
       } catch (error) {
+        const fallback = handleFirebaseOfflineOrError(error, 'addClient', async () => {
+          const list = await this.getClients();
+          list.push(newClient);
+          localStorage.setItem('barber_clients', JSON.stringify(list));
+          return newClient;
+        });
+        if (fallback !== null) return await fallback;
         handleFirestoreError(error, OperationType.WRITE, path);
       }
     } else {
@@ -861,6 +989,12 @@ export const dbStore = {
       try {
         await updateDoc(doc(db, 'clients', id), update as any);
       } catch (error) {
+        const fallback = handleFirebaseOfflineOrError(error, 'updateClient', async () => {
+          const list = await this.getClients();
+          const updated = list.map(item => item.id === id ? { ...item, ...update } : item);
+          localStorage.setItem('barber_clients', JSON.stringify(updated));
+        });
+        if (fallback !== null) return await fallback;
         handleFirestoreError(error, OperationType.WRITE, path);
       }
     } else {
@@ -951,6 +1085,11 @@ export const dbStore = {
         });
         return list;
       } catch (error) {
+        const fallback = handleFirebaseOfflineOrError(error, 'getTransactions', () => {
+          const local = localStorage.getItem('barber_transactions');
+          return local ? JSON.parse(local) : [];
+        });
+        if (fallback !== null) return fallback;
         handleFirestoreError(error, OperationType.GET, path);
       }
     } else {
@@ -984,6 +1123,13 @@ export const dbStore = {
         await setDoc(doc(db, 'transactions', newId), newTx);
         return newTx;
       } catch (error) {
+        const fallback = handleFirebaseOfflineOrError(error, 'addTransaction', async () => {
+          const list = await this.getTransactions();
+          list.push(newTx);
+          localStorage.setItem('barber_transactions', JSON.stringify(list));
+          return newTx;
+        });
+        if (fallback !== null) return await fallback;
         handleFirestoreError(error, OperationType.WRITE, path);
       }
     } else {
@@ -1012,6 +1158,12 @@ export const dbStore = {
       try {
         await deleteDoc(doc(db, 'transactions', id));
       } catch (error) {
+        const fallback = handleFirebaseOfflineOrError(error, 'deleteTransaction', async () => {
+          const list = await this.getTransactions();
+          const updated = list.filter(item => item.id !== id);
+          localStorage.setItem('barber_transactions', JSON.stringify(updated));
+        });
+        if (fallback !== null) return await fallback;
         handleFirestoreError(error, OperationType.DELETE, path);
       }
     } else {
