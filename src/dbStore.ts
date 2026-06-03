@@ -88,8 +88,8 @@ function mapSettingsFromDb(data: any): BarberSettings {
   };
 }
 
-function mapSettingsToDb(data: BarberSettings): any {
-  return {
+function mapSettingsToDb(data: BarberSettings, userId?: string | null): any {
+  const payload: any = {
     id: 'barber',
     name: data.name,
     address: data.address,
@@ -101,6 +101,10 @@ function mapSettingsToDb(data: BarberSettings): any {
     barbers: data.barbers || [],
     admin_name: data.adminName || 'Ricardo'
   };
+  if (userId) {
+    payload.user_id = userId;
+  }
+  return payload;
 }
 
 function mapBookingFromDb(data: any): Booking {
@@ -498,7 +502,24 @@ export const dbStore = {
           return mapSettingsFromDb(data);
         } else {
           try {
-            await supabase.from('barber_settings').upsert([mapSettingsToDb(DEFAULT_SETTINGS)]);
+            let userId: string | null = null;
+            try {
+              const { data: { user } } = await supabase.auth.getUser();
+              userId = user?.id || null;
+            } catch (err) {}
+            
+            const defaultPayload = mapSettingsToDb(DEFAULT_SETTINGS, userId);
+            const { error: upsertErr } = await supabase.from('barber_settings').upsert([defaultPayload]);
+            if (upsertErr) {
+              const errMsg = (upsertErr.message || '').toLowerCase();
+              if (errMsg.includes('user_id') && (errMsg.includes('column') || errMsg.includes('exist'))) {
+                const cleanPayload = { ...defaultPayload };
+                delete cleanPayload.user_id;
+                await supabase.from('barber_settings').upsert([cleanPayload]);
+              } else {
+                throw upsertErr;
+              }
+            }
           } catch (upsertErr) {
             console.warn("Could not upsert default settings in Supabase:", upsertErr);
           }
@@ -506,6 +527,8 @@ export const dbStore = {
         }
       } catch (error) {
         console.warn("Supabase getSettings failed, checking Firebase/Local fallback:", error);
+        const local = localStorage.getItem('barber_settings');
+        return local ? JSON.parse(local) : DEFAULT_SETTINGS;
       }
     }
     if (isFirebaseEnabled && db) {
@@ -544,13 +567,38 @@ export const dbStore = {
 
     if (isSupabaseEnabled && supabase) {
       try {
+        let userId: string | null = null;
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          userId = user?.id || null;
+        } catch (err) {
+          console.warn("Could not fetch current user during updateSettings:", err);
+        }
+
+        const dbPayload = mapSettingsToDb(settings, userId);
         const { error } = await supabase
           .from('barber_settings')
-          .upsert([mapSettingsToDb(settings)]);
-        if (!error) return;
-        throw error;
+          .upsert([dbPayload]);
+
+        if (error) {
+          const errMsg = (error?.message || '').toLowerCase();
+          // Se o banco não tem a coluna user_id, limpa e retenta sem essa coluna para máxima compatibilidade
+          if (errMsg.includes('user_id') && (errMsg.includes('column') || errMsg.includes('exist'))) {
+            console.warn("A coluna 'user_id' não existe na tabela 'barber_settings'. Retentando salvar sem 'user_id'...");
+            const cleanPayload = { ...dbPayload };
+            delete cleanPayload.user_id;
+            const { error: retryError } = await supabase
+              .from('barber_settings')
+              .upsert([cleanPayload]);
+            if (retryError) throw retryError;
+          } else {
+            throw error;
+          }
+        }
+        return;
       } catch (error) {
-        console.warn("Supabase updateSettings failed, checking Firebase/Local fallback:", error);
+        console.error("Supabase updateSettings failed:", error);
+        throw error; // Não engula o erro! Deixa a UI saber!
       }
     }
     if (isFirebaseEnabled && db && auth?.currentUser) {

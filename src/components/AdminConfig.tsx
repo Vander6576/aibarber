@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BarberSettings } from '../types';
 import { dbStore } from '../dbStore';
-import { Settings, HelpCircle, Shield, RotateCcw, AlertTriangle, Cloud, CloudOff, Save, Check, Database, Copy } from 'lucide-react';
+import { Settings, HelpCircle, Shield, RotateCcw, AlertTriangle, Cloud, CloudOff, Save, Check, Database, Copy, Loader2, AlertCircle } from 'lucide-react';
 import { isSupabaseEnabled } from '../supabase';
 
-const SUPABASE_MIGRATION_SQL = `-- Criar tabela de configurações da barbearia
+const SUPABASE_MIGRATION_SQL = `-- 1. Criar tabela de configurações da barbearia (com relacionamento user_id com auth.users)
 create table if not exists barber_settings (
   id text primary key,
+  user_id uuid references auth.users(id),
   name text not null,
   address text not null,
   phone text not null,
@@ -18,7 +19,10 @@ create table if not exists barber_settings (
   admin_name text
 );
 
--- Criar tabela de serviços
+-- Se a tabela já exists, garanta que a coluna user_id esteja presente para RLS
+alter table if exists barber_settings add column if not exists user_id uuid references auth.users(id);
+
+-- 2. Criar tabela de serviços
 create table if not exists services (
   id text primary key,
   name text not null,
@@ -28,7 +32,7 @@ create table if not exists services (
   category text
 );
 
--- Criar tabela de agendamentos
+-- 3. Criar tabela de agendamentos
 create table if not exists bookings (
   id text primary key,
   client_name text not null,
@@ -45,7 +49,7 @@ create table if not exists bookings (
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- Criar tabela de clientes (CRM)
+-- 4. Criar tabela de clientes (CRM)
 create table if not exists clients (
   id text primary key,
   name text not null,
@@ -58,7 +62,7 @@ create table if not exists clients (
   total_spent numeric default 0 not null
 );
 
--- Criar tabela de transações (Financeiro)
+-- 5. Criar tabela de transações (Financeiro)
 create table if not exists transactions (
   id text primary key,
   type text not null,
@@ -68,7 +72,37 @@ create table if not exists transactions (
   payment_method text not null,
   booking_id text,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
-);`;
+);
+
+-- 6. Habilitar RLS (Row Level Security) para segurança robusta
+alter table barber_settings enable row level security;
+alter table services enable row level security;
+alter table bookings enable row level security;
+alter table clients enable row level security;
+alter table transactions enable row level security;
+
+-- 7. Políticas de Segurança (Policies)
+
+-- Configurações (Apenas admins modificam, público lê)
+create policy "Qualquer pessoa pode ler as configurações" on barber_settings for select using (true);
+create policy "Apenas admins autenticados editam suas configurações" on barber_settings for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- Serviços (Admins editam, público lê)
+create policy "Público lê serviços" on services for select using (true);
+create policy "Admins editam serviços" on services for all to authenticated using (true);
+
+-- Agendamentos (Agendamento público permitido, admins lêem/editam)
+create policy "Público cria agendamentos" on bookings for insert with check (true);
+create policy "Público consulta agendamentos" on bookings for select using (true);
+create policy "Admins gerenciam agendamentos" on bookings for all to authenticated using (true);
+
+-- Clientes (Público cria ao agendar, admins gerenciam)
+create policy "Público cria cadastro cliente" on clients for insert with check (true);
+create policy "Público consulta cadastro cliente" on clients for select using (true);
+create policy "Admins gerenciam clientes" on clients for all to authenticated using (true);
+
+-- Transações (Apenas admins gerenciam)
+create policy "Admins gerenciam transações" on transactions for all to authenticated using (true);`;
 
 interface ConfigProps {
   settings: BarberSettings;
@@ -78,17 +112,34 @@ interface ConfigProps {
 export default function AdminConfig({ settings, onUpdateSettings }: ConfigProps) {
   const [formData, setFormData] = useState<BarberSettings>({ ...settings });
   const [isSaved, setIsSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showMigrationSql, setShowMigrationSql] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // Sincroniza o estado do formulário se as configurações forem recarregadas no componente pai
+  useEffect(() => {
+    setFormData({ ...settings });
+  }, [settings]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSaving(true);
+    setErrorMessage(null);
+    setIsSaved(false);
     try {
       await onUpdateSettings(formData);
       setIsSaved(true);
-      setTimeout(() => setIsSaved(false), 3000);
-    } catch (err) {
-      console.error(err);
+      setTimeout(() => setIsSaved(false), 5000);
+    } catch (err: any) {
+      console.error("Falha ao salvar configurações:", err);
+      setErrorMessage(
+        err?.message || 
+        err?.hint ||
+        "Não foi possível persistir as configurações no Supabase. Certifique-se de que a tabela 'barber_settings' existe e possua regras de acesso RLS configuradas corretamente."
+      );
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -329,18 +380,45 @@ export default function AdminConfig({ settings, onUpdateSettings }: ConfigProps)
             </div>
           </div>
 
+          {errorMessage && (
+            <div className="flex items-start gap-2.5 bg-red-500/10 border border-red-500/20 text-red-400 p-3.5 rounded-xl text-xs font-sans">
+              <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <span className="font-bold">Ocorreu um erro ao salvar:</span>
+                <p className="mt-0.5 leading-relaxed text-zinc-300">{errorMessage}</p>
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-4 pt-4 border-t border-zinc-850 justify-between items-center">
             {isSaved ? (
               <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
                 <Check className="h-4 w-4" /> Alterações salvas com sucesso!
               </span>
-            ) : <span className="text-xs text-zinc-500">Última alteração: Recente</span>}
+            ) : isSaving ? (
+              <span className="text-xs text-amber-500 font-medium flex items-center gap-1.5 animate-pulse">
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-500" /> Sincronizando com o Supabase...
+              </span>
+            ) : (
+              <span className="text-xs text-zinc-500">Última alteração: Recente</span>
+            )}
 
             <button
               type="submit"
-              className="bg-amber-500 hover:bg-amber-400 text-zinc-950 px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-1.5 transition-all shadow-md"
+              disabled={isSaving}
+              className={`bg-amber-500 hover:bg-amber-400 text-zinc-950 px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-1.5 transition-all shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed`}
             >
-              <Save className="h-4 w-4" /> Salvar Configurações
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin text-zinc-950" />
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  Salvar Configurações
+                </>
+              )}
             </button>
           </div>
         </form>

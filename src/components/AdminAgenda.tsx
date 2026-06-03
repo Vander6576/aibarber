@@ -34,6 +34,7 @@ export default function AdminAgenda({
   const [filterStatus, setFilterStatus] = useState<string>('todos');
   const [filterServiceId, setFilterServiceId] = useState<string>('todos');
   const [filterBarber, setFilterBarber] = useState<string>('todos');
+  const [filterClientName, setFilterClientName] = useState<string>('todos');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [currentViewMode, setCurrentViewMode] = useState<'grade' | 'lista'>('grade');
 
@@ -224,7 +225,12 @@ export default function AdminAgenda({
       if (b.barberName !== filterBarber) return false;
     }
 
-    // 5. Filtro de Busca rápida (nome ou telefone do cliente)
+    // 5. Filtro de Cliente específico
+    if (filterClientName !== 'todos') {
+      if (b.clientName !== filterClientName) return false;
+    }
+
+    // 6. Filtro de Busca rápida (nome ou telefone do cliente)
     if (searchQuery.trim() !== '') {
       const q = searchQuery.toLowerCase().trim();
       const nameMatch = b.clientName.toLowerCase().includes(q);
@@ -234,6 +240,9 @@ export default function AdminAgenda({
 
     return true;
   });
+
+  // Obter lista única de clientes de todos os agendamentos registrados para o filtro
+  const uniqueClients = Array.from(new Set(bookings.map(b => b.clientName))).filter(Boolean).sort();
 
   // Agendamentos ativos para a data selecionada do grid (filtrados pelo status/serviço e busca rápida)
   const activeBookingsForSelectedDate = filteredBookings.filter(b => b.date === activeGridDate);
@@ -309,7 +318,7 @@ export default function AdminAgenda({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           {/* Busca Rápida */}
           <div className="space-y-1 relative">
             <label className="text-[11px] text-zinc-400 block font-medium">Busca rápida (Cliente / Tel)</label>
@@ -366,6 +375,21 @@ export default function AdminAgenda({
             </select>
           </div>
 
+          {/* Cliente */}
+          <div className="space-y-1">
+            <label className="text-[11px] text-zinc-400 block font-medium">Filtrar por Cliente</label>
+            <select
+              value={filterClientName}
+              onChange={(e) => setFilterClientName(e.target.value)}
+              className="bg-black border border-white/5 rounded-xl px-3 py-2 w-full text-xs text-white focus:outline-none focus:border-amber-500/50 font-sans"
+            >
+              <option value="todos">Todos os Clientes</option>
+              {uniqueClients.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+
           {/* Serviço */}
           <div className="space-y-1">
             <label className="text-[11px] text-zinc-400 block font-medium">Filtrar por Serviço</label>
@@ -383,7 +407,7 @@ export default function AdminAgenda({
         </div>
 
         {/* Informations and Clean Filters button */}
-        {(searchQuery || filterPeriod !== 'dia' || filterStatus !== 'todos' || filterServiceId !== 'todos') && (
+        {(searchQuery || filterPeriod !== 'dia' || filterStatus !== 'todos' || filterServiceId !== 'todos' || filterClientName !== 'todos') && (
           <div className="flex justify-between items-center bg-zinc-950 px-4 py-2.5 rounded-2xl border border-white/5 text-xs text-zinc-400 font-sans">
             <span>Resultados: <strong>{filteredBookings.length}</strong> encontrados.</span>
             <button
@@ -392,6 +416,7 @@ export default function AdminAgenda({
                 setFilterPeriod('dia');
                 setFilterStatus('todos');
                 setFilterServiceId('todos');
+                setFilterClientName('todos');
                 setFilterBarber('todos');
                 setCurrentViewMode('grade');
               }}
