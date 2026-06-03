@@ -26,6 +26,21 @@ interface DashboardProps {
 }
 
 export default function AdminDashboard({ bookings, clients, transactions, services, settings, onNavigateTab }: DashboardProps) {
+  const [showDemoGuide, setShowDemoGuide] = useState(() => {
+    try {
+      return localStorage.getItem('barber_connect_demo_guide_dismissed') !== 'true';
+    } catch {
+      return true;
+    }
+  });
+
+  const dismissDemoGuide = () => {
+    try {
+      localStorage.setItem('barber_connect_demo_guide_dismissed', 'true');
+    } catch {}
+    setShowDemoGuide(false);
+  };
+
   const [metrics, setMetrics] = useState({
     dailyRevenue: 0,
     monthlyRevenue: 0,
@@ -147,6 +162,53 @@ export default function AdminDashboard({ bookings, clients, transactions, servic
           </div>
         </div>
       </header>
+
+      {/* MODO DEMO: GUIA DE EXPEDIENTE / ONBOARDING */}
+      {showDemoGuide && (
+        <div className="bg-gradient-to-r from-amber-500/[0.08] to-amber-500/[0.01] border border-amber-500/20 rounded-3xl p-5 relative overflow-hidden" id="demo-mode-onboarding-panel">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl pointer-events-none"></div>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="space-y-1">
+              <span className="text-[9px] bg-amber-500 text-zinc-950 px-2 py-0.5 rounded-full font-mono font-extrabold tracking-wider uppercase">Modo de Demonstração Ativo</span>
+              <h3 className="text-sm font-bold text-white font-sans mt-2 flex items-center gap-1.5">
+                <Sparkles className="h-4 w-4 text-amber-500" /> Guia de Primeiros Passos BarberConnect
+              </h3>
+              <p className="text-xs text-zinc-400 max-w-xl leading-relaxed">Confira nossas dicas rápidas criadas especialmente para você testar todas as funcionalidades operacionais de forma integrada:</p>
+            </div>
+            <button 
+              onClick={dismissDemoGuide}
+              className="text-zinc-400 hover:text-white text-[11px] font-sans font-bold hover:bg-zinc-900 border border-white/5 bg-zinc-950 px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-sm flex-shrink-0"
+              title="Ocultar Guia"
+            >
+              Recusar dicas boas-vindas
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-4 mt-4 border-t border-white/5">
+            <div className="p-3.5 bg-zinc-950/40 border border-white/5 rounded-2xl flex gap-3.5 items-start">
+              <span className="h-6 w-6 bg-amber-500/10 border border-amber-500/25 text-amber-400 rounded-lg text-xs font-mono font-extrabold flex items-center justify-center select-none flex-shrink-0">1</span>
+              <div className="space-y-1">
+                <h4 className="text-xs font-bold text-white font-sans uppercase tracking-tight">Criar Horários Rápidos</h4>
+                <p className="text-[11px] text-zinc-400 leading-normal">Na aba <strong>Agenda</strong>, basta clicar em qualquer horário livre para simular e salvar um novo atendimento em 3 cliques.</p>
+              </div>
+            </div>
+            <div className="p-3.5 bg-zinc-950/40 border border-white/5 rounded-2xl flex gap-3.5 items-start">
+              <span className="h-6 w-6 bg-amber-500/10 border border-amber-500/25 text-amber-400 rounded-lg text-xs font-mono font-extrabold flex items-center justify-center select-none flex-shrink-0">2</span>
+              <div className="space-y-1">
+                <h4 className="text-xs font-bold text-white font-sans uppercase tracking-tight">Controle Financeiro</h4>
+                <p className="text-[11px] text-zinc-400 leading-normal">Marcar horários como <strong>Concluído</strong> gera lançamentos automáticos no <strong>Fluxo Financeiro</strong> geral de forma integrada.</p>
+              </div>
+            </div>
+            <div className="p-3.5 bg-zinc-950/40 border border-white/5 rounded-2xl flex gap-3.5 items-start">
+              <span className="h-6 w-6 bg-amber-500/10 border border-amber-500/25 text-amber-400 rounded-lg text-xs font-mono font-extrabold flex items-center justify-center select-none flex-shrink-0">3</span>
+              <div className="space-y-1">
+                <h4 className="text-xs font-bold text-white font-sans uppercase tracking-tight">Fale com Clientes CRM</h4>
+                <p className="text-[11px] text-zinc-400 leading-normal">Na aba <strong>Clientes</strong>, use o ícone verde de WhatsApp para abrir o chat pré-configurado enviando lembretes personalizados com 1-toque.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* SUB-HEADER METRIC BAR FOR RESPONSIVE SCATTER */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

@@ -37,7 +37,9 @@ import {
   AlertCircle,
   BarChart3,
   MapPin,
-  Phone
+  Phone,
+  Menu,
+  X
 } from 'lucide-react';
 
 export default function App() {
@@ -52,6 +54,7 @@ export default function App() {
 
   const [currentView, setCurrentView] = useState<ViewType>(getInitialView());
   const [adminTab, setAdminTab] = useState<AdminTabType>('dashboard');
+  const [showAdminMobileMenu, setShowAdminMobileMenu] = useState(false);
 
   // --- CONTROLE DE SESSÃO / AUTH ---
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
@@ -785,10 +788,10 @@ export default function App() {
           ) : (
             
             // --- WORKSPACE ADMINISTRATIVO EXCLUSIVO (Layout SaaS Pro) ---
-            <div className="flex-1 w-full flex flex-col lg:flex-row gap-6 p-4 sm:p-6" id="logged-admin-workspace">
+            <div className="flex-1 w-full flex flex-col lg:flex-row gap-6 p-4 sm:p-6 pb-24 lg:pb-6" id="logged-admin-workspace">
               
               {/* ASIDE SIDEBAR ADMIN LAYOUT COMPONENT */}
-              <aside className="bg-[#121212] border border-[#ffffff07] rounded-3xl p-5 shadow-2xl space-y-6 h-fit w-full lg:w-72 flex-shrink-0" id="admin-sidebar-menu">
+              <aside className="hidden lg:block bg-[#121212] border border-[#ffffff07] rounded-3xl p-5 shadow-2xl space-y-6 h-fit w-full lg:w-72 flex-shrink-0" id="admin-sidebar-menu">
                 
                 {/* Active user header block */}
                 <div className="border-b border-zinc-905 pb-5 space-y-1">
@@ -889,6 +892,115 @@ export default function App() {
                 </div>
 
               </aside>
+
+              {/* MOBILE BOTTOM NAVIGATION BAR */}
+              <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-zinc-950/95 backdrop-blur-md border-t border-white/5 pb-5 pt-2 flex items-center justify-around px-2 shadow-2xl">
+                <button
+                  onClick={() => { setAdminTab('dashboard'); setShowAdminMobileMenu(false); }}
+                  className={`flex flex-col items-center gap-1.5 py-1 text-[10px] font-sans font-bold flex-1 transition-all ${
+                    adminTab === 'dashboard' ? 'text-amber-500 scale-105' : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
+                >
+                  <Sparkles className="h-5 w-5" />
+                  <span>Início</span>
+                </button>
+                
+                <button
+                  onClick={() => { setAdminTab('agenda'); setShowAdminMobileMenu(false); }}
+                  className={`flex flex-col items-center gap-1.5 py-1 text-[10px] font-sans font-bold flex-1 transition-all ${
+                    adminTab === 'agenda' ? 'text-amber-500 scale-105' : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
+                >
+                  <Calendar className="h-5 w-5" />
+                  <span>Agenda</span>
+                </button>
+
+                <button
+                  onClick={() => { setAdminTab('clientes'); setShowAdminMobileMenu(false); }}
+                  className={`flex flex-col items-center gap-1.5 py-1 text-[10px] font-sans font-bold flex-1 transition-all ${
+                    adminTab === 'clientes' ? 'text-amber-500 scale-105' : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
+                >
+                  <User className="h-5 w-5" />
+                  <span>Clientes</span>
+                </button>
+
+                <button
+                  onClick={() => { setAdminTab('financeiro'); setShowAdminMobileMenu(false); }}
+                  className={`flex flex-col items-center gap-1.5 py-1 text-[10px] font-sans font-bold flex-1 transition-all ${
+                    adminTab === 'financeiro' ? 'text-amber-500 scale-105' : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
+                >
+                  <DollarSign className="h-5 w-5" />
+                  <span>Finanças</span>
+                </button>
+
+                <button
+                  onClick={() => setShowAdminMobileMenu(!showAdminMobileMenu)}
+                  className={`flex flex-col items-center gap-1.5 py-1 text-[10px] font-sans font-bold flex-1 transition-all ${
+                    showAdminMobileMenu || ['relatorios', 'servicos', 'config'].includes(adminTab) ? 'text-amber-500 scale-105' : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
+                >
+                  <Menu className="h-5 w-5" />
+                  <span>Mais</span>
+                </button>
+              </div>
+
+              {/* MOBILE BOTTOM SHEET MENU (DRAWER OVERLAY) */}
+              {showAdminMobileMenu && (
+                <div className="lg:hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center">
+                  <div className="w-full bg-[#121212] border-t border-white/5 rounded-t-3xl p-6 pb-12 space-y-5 animate-in slide-in-from-bottom duration-200 shadow-2xl">
+                    <div className="flex justify-between items-center pb-2 border-b border-zinc-900">
+                      <div>
+                        <h4 className="text-sm font-sans font-extrabold text-white uppercase tracking-tight">Mais Opções</h4>
+                        <p className="text-[10px] text-zinc-500 font-mono tracking-wider">BarberConnect Operações</p>
+                      </div>
+                      <button 
+                        onClick={() => setShowAdminMobileMenu(false)}
+                        className="p-2 bg-zinc-950 border border-white/5 rounded-full text-zinc-400 hover:text-white transition-all cursor-pointer hover:border-white/10"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 pb-3">
+                      <button
+                        onClick={() => { setAdminTab('relatorios'); setShowAdminMobileMenu(false); }}
+                        className={`p-4 rounded-2xl border text-left flex flex-col justify-between h-24 transition-all cursor-pointer ${
+                          adminTab === 'relatorios' ? 'bg-amber-500/10 border-amber-500/30 text-amber-500' : 'bg-zinc-950 border-white/5 text-zinc-400'
+                        }`}
+                      >
+                        <BarChart3 className="h-5 w-5" />
+                        <span className="text-xs font-sans font-bold leading-none">Relatórios</span>
+                      </button>
+                      <button
+                        onClick={() => { setAdminTab('servicos'); setShowAdminMobileMenu(false); }}
+                        className={`p-4 rounded-2xl border text-left flex flex-col justify-between h-24 transition-all cursor-pointer ${
+                          adminTab === 'servicos' ? 'bg-amber-500/10 border-amber-500/30 text-amber-500' : 'bg-zinc-950 border-white/5 text-zinc-400'
+                        }`}
+                      >
+                        <Scissors className="h-5 w-5" />
+                        <span className="text-xs font-sans font-bold leading-none">Serviços</span>
+                      </button>
+                      <button
+                        onClick={() => { setAdminTab('config'); setShowAdminMobileMenu(false); }}
+                        className={`p-4 rounded-2xl border text-left flex flex-col justify-between h-24 transition-all cursor-pointer ${
+                          adminTab === 'config' ? 'bg-amber-500/10 border-amber-500/30 text-amber-500' : 'bg-zinc-950 border-white/5 text-zinc-400'
+                        }`}
+                      >
+                        <Settings className="h-5 w-5" />
+                        <span className="text-xs font-sans font-bold leading-none">Configurações</span>
+                      </button>
+                      <button
+                        onClick={() => { handleAdminLogout(); setShowAdminMobileMenu(false); }}
+                        className="p-4 rounded-2xl border border-red-500/10 bg-[#1e0e0e]/40 text-red-400 text-left flex flex-col justify-between h-24 hover:bg-[#1e0e0e] cursor-pointer"
+                      >
+                        <LogOut className="h-5 w-5" />
+                        <span className="text-xs font-sans font-bold leading-none">Desconectar</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* CONTEÚDO PRINCIPAL DO WORKSPACE INTEGRADO */}
               <div className="flex-1 min-w-0" id="admin-viewports-box">

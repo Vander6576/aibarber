@@ -128,87 +128,154 @@ export default function AdminClientes({ clients, onAddClient, onUpdateClient }: 
           <span className="text-xs text-zinc-500 font-mono hidden sm:inline">Total: {filteredClients.length}</span>
         </div>
 
-        {/* CRM CLIENTS TABLE */}
+        {/* CRM CLIENTS TABLE & MOBILE CARD ADAPTER */}
         {filteredClients.length === 0 ? (
           <div className="p-10 flex flex-col items-center justify-center text-center text-zinc-500">
             <User className="h-10 w-10 text-zinc-700 mb-2" />
             <p className="text-sm">Nenhum cliente cadastrado ou encontrado com este nome.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-zinc-800 text-xs font-mono text-zinc-400 uppercase tracking-wider bg-zinc-950/60 font-medium">
-                  <th className="py-3 px-5">Cliente</th>
-                  <th className="py-3 px-5">WhatsApp</th>
-                  <th className="py-3 px-5">Nascimento</th>
-                  <th className="py-3 px-5">Preferências/Obs</th>
-                  <th className="py-3 px-5 text-center">Visitas</th>
-                  <th className="py-3 px-5 text-center">Total Gasto</th>
-                  <th className="py-3 px-5 text-center">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-850">
-                {filteredClients.map((client) => (
-                  <tr key={client.id} className="hover:bg-zinc-950/40 text-sm transition-colors">
-                    {/* Nome */}
-                    <td className="py-3.5 px-5 font-semibold text-white truncate max-w-[150px]">
-                      {client.name}
-                    </td>
-                    
-                    {/* Telefone / WhatsApp */}
-                    <td className="py-3.5 px-5 font-mono text-xs text-zinc-300">
-                      {client.whatsapp}
-                    </td>
-                    
-                    {/* Data de Nascimento */}
-                    <td className="py-3.5 px-5 font-mono text-xs text-zinc-400">
-                      {client.birthDate ? client.birthDate.split('-').reverse().join('/') : <span className="text-zinc-600">-</span>}
-                    </td>
-                    
-                    {/* Notas */}
-                    <td className="py-3.5 px-5 text-xs text-zinc-400 font-sans max-w-[200px] truncate" title={client.notes}>
-                      {client.notes || <span className="text-zinc-600 italic">Sem preferências anexadas</span>}
-                    </td>
-                    
-                    {/* Frequência */}
-                    <td className="py-3.5 px-5 text-center font-mono text-xs text-zinc-300">
-                      <span className="bg-zinc-950 border border-zinc-800 px-2 py-0.5 rounded-md">
-                        {client.totalBookings || 0}
-                      </span>
-                    </td>
-                    
-                    {/* Gasto acumulado */}
-                    <td className="py-3.5 px-5 text-center font-mono text-xs text-emerald-400 font-semibold">
-                      R$ {(client.totalSpent || 0).toFixed(2)}
-                    </td>
+          <div>
+            {/* MOBILE ONLY CARDS VIEW */}
+            <div className="sm:hidden space-y-4 p-4" id="crm-clients-mobile-cards">
+              {filteredClients.map((client) => (
+                <div 
+                  key={client.id} 
+                  className="bg-[#181818] border border-white/5 rounded-2xl p-4 space-y-3 shadow-lg relative overflow-hidden"
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className="text-sm font-bold text-white font-sans">{client.name}</h4>
+                      <p className="text-[10px] font-mono text-zinc-400 mt-0.5">{client.whatsapp}</p>
+                    </div>
+                    <span className="text-[10px] bg-amber-500/10 border border-amber-500/20 text-amber-500 px-2.5 py-1 rounded-lg font-mono font-bold">
+                      {client.totalBookings || 0} visitas
+                    </span>
+                  </div>
 
-                    {/* Ações rápidas */}
-                    <td className="py-3.5 px-5 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <button
-                          onClick={() => openClientWhatsApp(client.whatsapp, client.name)}
-                          title="Enviar Mensagem WhatsApp"
-                          className="text-emerald-500 hover:bg-emerald-500/10 border border-zinc-800 p-1.5 rounded-lg transition-colors bg-zinc-950"
-                        >
-                          <MessageSquare className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleOpenEdit(client)}
-                          title="Modificar observações"
-                          className="text-amber-500 hover:bg-amber-500/10 border border-zinc-800 p-1.5 rounded-lg transition-colors bg-zinc-950"
-                        >
-                          <Edit className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </td>
+                  {client.birthDate && (
+                    <div className="text-[10px] text-zinc-400 flex items-center gap-1 font-mono">
+                      <Calendar className="h-3.5 w-3.5 text-zinc-500" /> Nascimento: {client.birthDate.split('-').reverse().join('/')}
+                    </div>
+                  )}
+
+                  <div className="text-[11px] text-zinc-300 bg-black/45 p-3 rounded-xl border border-white/5 font-sans leading-relaxed">
+                    <strong className="text-amber-500/90 text-[10px] uppercase font-mono block mb-1">Preferencia / Histórico</strong>
+                    <p className="italic">{client.notes || "Sem preferências registradas."}</p>
+                  </div>
+
+                  <div className="flex gap-2 justify-between items-center border-t border-white/5 pt-3">
+                    <div className="text-xs">
+                      <span className="text-zinc-500 text-[10px] uppercase font-mono">Total Consumido:</span>
+                      <p className="font-mono font-extrabold text-emerald-400 text-sm">R$ {(client.totalSpent || 0).toFixed(2)}</p>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => openClientWhatsApp(client.whatsapp, client.name)}
+                        className="p-2.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/15 rounded-xl flex items-center justify-center transition-all cursor-pointer active:scale-95"
+                        title="Falar no WhatsApp"
+                      >
+                        <MessageSquare className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleOpenEdit(client)}
+                        className="p-2.5 bg-amber-500/10 text-amber-400 border border-amber-500/15 rounded-xl flex items-center justify-center transition-all cursor-pointer active:scale-95"
+                        title="Modificar observações"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* DESKTOP TABLE VIEW */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-zinc-800 text-xs font-mono text-zinc-400 uppercase tracking-wider bg-zinc-950/60 font-medium">
+                    <th className="py-3 px-5">Cliente</th>
+                    <th className="py-3 px-5">WhatsApp</th>
+                    <th className="py-3 px-5">Nascimento</th>
+                    <th className="py-3 px-5">Preferências/Obs</th>
+                    <th className="py-3 px-5 text-center">Visitas</th>
+                    <th className="py-3 px-5 text-center">Total Gasto</th>
+                    <th className="py-3 px-5 text-center">Ações</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-zinc-850">
+                  {filteredClients.map((client) => (
+                    <tr key={client.id} className="hover:bg-zinc-950/40 text-sm transition-colors">
+                      {/* Nome */}
+                      <td className="py-3.5 px-5 font-semibold text-white truncate max-w-[150px]">
+                        {client.name}
+                      </td>
+                      
+                      {/* Telefone / WhatsApp */}
+                      <td className="py-3.5 px-5 font-mono text-xs text-zinc-300">
+                        {client.whatsapp}
+                      </td>
+                      
+                      {/* Data de Nascimento */}
+                      <td className="py-3.5 px-5 font-mono text-xs text-zinc-400">
+                        {client.birthDate ? client.birthDate.split('-').reverse().join('/') : <span className="text-zinc-600">-</span>}
+                      </td>
+                      
+                      {/* Notas */}
+                      <td className="py-3.5 px-5 text-xs text-zinc-400 font-sans max-w-[200px] truncate" title={client.notes}>
+                        {client.notes || <span className="text-zinc-600 italic">Sem preferências anexadas</span>}
+                      </td>
+                      
+                      {/* Frequência */}
+                      <td className="py-3.5 px-5 text-center font-mono text-xs text-zinc-300">
+                        <span className="bg-zinc-950 border border-zinc-800 px-2 py-0.5 rounded-md">
+                          {client.totalBookings || 0}
+                        </span>
+                      </td>
+                      
+                      {/* Gasto acumulado */}
+                      <td className="py-3.5 px-5 text-center font-mono text-xs text-emerald-400 font-semibold">
+                        R$ {(client.totalSpent || 0).toFixed(2)}
+                      </td>
+
+                      {/* Ações rápidas */}
+                      <td className="py-3.5 px-5 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => openClientWhatsApp(client.whatsapp, client.name)}
+                            title="Enviar Mensagem WhatsApp"
+                            className="text-emerald-500 hover:bg-emerald-500/10 border border-zinc-800 p-1.5 rounded-lg transition-colors bg-zinc-950 cursor-pointer"
+                          >
+                            <MessageSquare className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleOpenEdit(client)}
+                            title="Modificar observações"
+                            className="text-amber-500 hover:bg-amber-500/10 border border-zinc-800 p-1.5 rounded-lg transition-colors bg-zinc-950 cursor-pointer"
+                          >
+                            <Edit className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
+
+      {/* MOBILE FLOATING ACTION BUTTON */}
+      <button
+        onClick={handleOpenAdd}
+        className="sm:hidden fixed bottom-24 right-4 z-40 bg-amber-500 text-black p-4 rounded-full shadow-2xl shadow-amber-500/35 flex items-center justify-center transition-all cursor-pointer hover:bg-amber-450 active:scale-95"
+        title="Novo Cliente"
+      >
+        <Plus className="h-6 w-6 stroke-[3px]" />
+      </button>
 
       {/* MODAL EDITAR DETALHES CLIENTE */}
       {showEditModal && selectedClient && (
