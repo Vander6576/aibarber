@@ -7,7 +7,7 @@ export interface Service {
   description?: string;
 }
 
-export type BookingStatus = 'agendado' | 'concluido' | 'cancelado';
+export type BookingStatus = 'agendado' | 'confirmado' | 'concluido' | 'cancelado';
 
 export interface Booking {
   id: string;
@@ -20,7 +20,7 @@ export interface Booking {
   time: string; // HH:MM
   status: BookingStatus;
   notes?: string;
-  paymentMethod?: 'pix' | 'dinheiro' | 'cartao';
+  paymentMethod?: 'pix' | 'dinheiro' | 'cartao' | 'cartao_debito' | 'cartao_credito' | 'transferencia' | 'outro';
   barberName?: string;
   createdAt: string;
 }
@@ -43,7 +43,7 @@ export interface Transaction {
   amount: number;
   date: string; // YYYY-MM-DD
   description: string;
-  paymentMethod: 'pix' | 'dinheiro' | 'cartao';
+  paymentMethod: 'pix' | 'dinheiro' | 'cartao' | 'cartao_debito' | 'cartao_credito' | 'transferencia' | 'outro';
   bookingId?: string;
   createdAt: string;
 }

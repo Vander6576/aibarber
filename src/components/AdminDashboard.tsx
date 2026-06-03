@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Booking, Client, Transaction, Service, BarberSettings } from '../types';
+import AdminShare from './AdminShare';
 import { 
   TrendingUp, 
   Users, 
@@ -162,6 +163,9 @@ export default function AdminDashboard({ bookings, clients, transactions, servic
           </div>
         </div>
       </header>
+
+      {/* COMPARTILHAMENTO DE LINK PÚBLICO */}
+      <AdminShare />
 
       {/* MODO DEMO: GUIA DE EXPEDIENTE / ONBOARDING */}
       {showDemoGuide && (

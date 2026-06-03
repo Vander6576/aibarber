@@ -539,6 +539,9 @@ export const dbStore = {
   },
 
   async updateSettings(settings: BarberSettings): Promise<void> {
+    // Sempre sincroniza com localStorage para cache local imediato no carregamento
+    localStorage.setItem('barber_settings', JSON.stringify(settings));
+
     if (isSupabaseEnabled && supabase) {
       try {
         const { error } = await supabase
@@ -555,14 +558,10 @@ export const dbStore = {
       try {
         await setDoc(doc(db, 'settings', 'barber'), settings);
       } catch (error) {
-        const fallback = handleFirebaseOfflineOrError(error, 'updateSettings', () => {
-          localStorage.setItem('barber_settings', JSON.stringify(settings));
-        });
+        const fallback = handleFirebaseOfflineOrError(error, 'updateSettings', () => {});
         if (fallback !== null) return;
         handleFirestoreError(error, OperationType.WRITE, path);
       }
-    } else {
-      localStorage.setItem('barber_settings', JSON.stringify(settings));
     }
   },
 
@@ -915,10 +914,14 @@ export const dbStore = {
   },
 
   async updateBooking(id: string, update: Partial<Booking>): Promise<void> {
-    // Se o status estiver mudando de agendado para concluído, gera transação financeira correspondente
+    // Carrega do localStorage primeiro para manter persistência local e cache
+    const list = await this.getBookings();
+    const updated = list.map(item => item.id === id ? { ...item, ...update } : item);
+    localStorage.setItem('barber_bookings', JSON.stringify(updated));
+
+    // Se o status estiver mudando de agendado para concluído, gera transação financeira e atualiza histórico do cliente
     if (update.status === 'concluido') {
-      const bookings = await this.getBookings();
-      const current = bookings.find(b => b.id === id);
+      const current = list.find(b => b.id === id);
       if (current && current.status !== 'concluido') {
         const pMethod = update.paymentMethod || 'pix';
         await this.addTransaction({
@@ -929,6 +932,8 @@ export const dbStore = {
           paymentMethod: pMethod,
           bookingId: id
         });
+        // Também atualiza o cadastro de CRM do cliente (Spent e bookings count)
+        await this.registerOrUpdateClient(current.clientName, current.clientWhatsApp, current.servicePrice, current.date);
       }
     }
 
@@ -938,6 +943,7 @@ export const dbStore = {
         if (update.status) dbUpdate.status = update.status;
         if (update.paymentMethod) dbUpdate.payment_method = update.paymentMethod;
         if (update.notes !== undefined) dbUpdate.notes = update.notes;
+        if (update.barberName !== undefined) dbUpdate.barber_name = update.barberName;
 
         const { error } = await supabase
           .from('bookings')
@@ -946,7 +952,7 @@ export const dbStore = {
         if (!error) return;
         throw error;
       } catch (error) {
-        console.warn("Supabase updateBooking failed, checking Firebase/Local fallback:", error);
+        console.warn("Supabase updateBooking failed:", error);
       }
     }
     if (isFirebaseEnabled && db) {
@@ -954,18 +960,10 @@ export const dbStore = {
       try {
         await updateDoc(doc(db, 'bookings', id), update as any);
       } catch (error) {
-        const fallback = handleFirebaseOfflineOrError(error, 'updateBooking', async () => {
-          const list = await this.getBookings();
-          const updated = list.map(item => item.id === id ? { ...item, ...update } : item);
-          localStorage.setItem('barber_bookings', JSON.stringify(updated));
-        });
-        if (fallback !== null) return await fallback;
+        const fallback = handleFirebaseOfflineOrError(error, 'updateBooking', async () => {});
+        if (fallback !== null) return;
         handleFirestoreError(error, OperationType.WRITE, path);
       }
-    } else {
-      const list = await this.getBookings();
-      const updated = list.map(item => item.id === id ? { ...item, ...update } : item);
-      localStorage.setItem('barber_bookings', JSON.stringify(updated));
     }
   },
 

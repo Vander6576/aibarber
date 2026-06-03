@@ -145,6 +145,31 @@ export default function AdminConfig({ settings, onUpdateSettings }: ConfigProps)
           </div>
 
           <div className="space-y-1">
+            <label className="text-xs text-zinc-400 block font-medium">Link da Logo da Barbearia (URL de Imagem)</label>
+            <input
+              type="url"
+              value={formData.logoUrl || ''}
+              onChange={(e) => setFormData({ ...formData, logoUrl: e.target.value })}
+              className="bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 w-full text-sm text-white focus:outline-none focus:border-amber-500/50"
+              placeholder="Ex: https://images.unsplash.com/... ou link de imagem"
+            />
+            {formData.logoUrl && (
+              <div className="mt-2 flex items-center gap-3 bg-zinc-950 p-2.5 rounded-xl border border-zinc-850 max-w-fit">
+                <img
+                  src={formData.logoUrl}
+                  alt="Prévia da Logo"
+                  className="h-10 w-10 rounded-lg object-cover border border-white/10"
+                  onError={(e) => {
+                    (e.target as any).style.display = 'none';
+                  }}
+                  referrerPolicy="no-referrer"
+                />
+                <span className="text-[10px] text-zinc-500 font-mono">Prévia da Logo carregada</span>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-1">
             <label className="text-xs text-zinc-400 block font-medium">Telefone/WhatsApp de Contato *</label>
             <input
               type="text"
@@ -168,7 +193,7 @@ export default function AdminConfig({ settings, onUpdateSettings }: ConfigProps)
 
           <h4 className="text-sm font-semibold text-white border-b border-zinc-800 pb-3 pt-3">Horário de Funcionamento Comercial</h4>
           
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 col-span-2">
             <div className="space-y-1 font-sans">
               <label className="text-xs text-zinc-400 block font-medium">Hora de Abertura (Expediente) *</label>
               <input
@@ -192,6 +217,41 @@ export default function AdminConfig({ settings, onUpdateSettings }: ConfigProps)
                 className="bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 w-full text-sm text-white font-mono"
               />
             </div>
+          </div>
+
+          <h4 className="text-sm font-semibold text-white border-b border-zinc-800 pb-3 pt-3">Dias de Atendimento na Semana *</h4>
+          <div className="flex flex-wrap gap-2 pt-1 pb-3">
+            {[
+              { id: 1, label: 'Segunda-feira' },
+              { id: 2, label: 'Terça-feira' },
+              { id: 3, label: 'Quarta-feira' },
+              { id: 4, label: 'Quinta-feira' },
+              { id: 5, label: 'Sexta-feira' },
+              { id: 6, label: 'Sábado' },
+              { id: 0, label: 'Domingo' },
+            ].map((day) => {
+              const isSelected = (formData.workingDays || []).includes(day.id);
+              return (
+                <button
+                  type="button"
+                  key={day.id}
+                  onClick={() => {
+                    const days = formData.workingDays || [];
+                    const newDays = days.includes(day.id)
+                      ? days.filter((d) => d !== day.id)
+                      : [...days, day.id].sort();
+                    setFormData({ ...formData, workingDays: newDays });
+                  }}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-amber-500/15 border-amber-500/50 text-amber-500 hover:bg-amber-500/25'
+                      : 'bg-zinc-950 border-zinc-850 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
+                  }`}
+                >
+                  {day.label}
+                </button>
+              );
+            })}
           </div>
 
           <h4 className="text-sm font-semibold text-white border-b border-zinc-800 pb-3 pt-3">Equipe de Barbeiros (Profissionais)</h4>
