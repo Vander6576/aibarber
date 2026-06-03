@@ -23,6 +23,7 @@ export default function PublicClientArea({ services, bookings, settings, onAddBo
   const [customerName, setCustomerName] = useState("");
   const [customerWhatsApp, setCustomerWhatsApp] = useState("");
   const [bookingNotes, setBookingNotes] = useState("");
+  const [selectedBarber, setSelectedBarber] = useState("");
   const [successBooking, setSuccessBooking] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -72,6 +73,7 @@ export default function PublicClientArea({ services, bookings, settings, onAddBo
     setCustomerName("");
     setCustomerWhatsApp("");
     setBookingNotes("");
+    setSelectedBarber("");
     setSuccessBooking(null);
   };
 
@@ -200,7 +202,8 @@ export default function PublicClientArea({ services, bookings, settings, onAddBo
         date: selectedDate,
         time: selectedTime,
         status: 'agendado',
-        notes: bookingNotes
+        notes: bookingNotes,
+        barberName: selectedBarber || (settings.barbers?.[0] || 'Qualquer Barbeiro')
       });
       
       setSuccessBooking(result);
@@ -535,6 +538,23 @@ export default function PublicClientArea({ services, bookings, settings, onAddBo
                       </div>
 
                       <div className="space-y-1">
+                        <label className="text-xs text-zinc-500 block">Profissional de Preferência</label>
+                        <div className="relative">
+                          <Scissors className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
+                          <select
+                            value={selectedBarber}
+                            onChange={(e) => setSelectedBarber(e.target.value)}
+                            className="bg-zinc-950 border border-zinc-800 text-xs text-white pl-9 pr-4 py-2 w-full rounded-xl focus:outline-none focus:border-amber-500/50 appearance-none cursor-pointer"
+                          >
+                            <option value="">Qualquer Barbeiro (Atendimento geral)</option>
+                            {(settings.barbers || ["Carlos", "Thiago", "Marcos"]).map(b => (
+                              <option key={b} value={b}>{b}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
                         <label className="text-xs text-zinc-500 block font-sans">Algum recado para o barbeiro? (Opcional)</label>
                         <textarea
                           rows={2}
@@ -589,6 +609,11 @@ export default function PublicClientArea({ services, bookings, settings, onAddBo
                           <span className="text-zinc-500 block text-[10px] uppercase font-sans">Horário:</span>
                           <strong className="text-amber-500 font-mono text-xs block mt-0.5">{successBooking.time}</strong>
                         </div>
+                      </div>
+
+                      <div className="border-t border-zinc-900 pt-2">
+                        <span className="text-zinc-500 block text-[10px] uppercase font-sans">Profissional (Barbeiro):</span>
+                        <strong className="text-white text-xs block mt-0.5">✂️ {successBooking.barberName || "Qualquer Barbeiro"}</strong>
                       </div>
 
                       <div className="flex items-start gap-2 text-[10px] text-zinc-400 border-t border-zinc-900 pt-2">

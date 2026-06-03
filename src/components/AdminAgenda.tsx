@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Booking, Service, BookingStatus } from '../types';
+import { Booking, Service, BookingStatus, BarberSettings } from '../types';
 import { Plus, Clock, User, Phone, Check, X, ShieldAlert, FileText, Send, Calendar, Trash2, ArrowLeftRight } from 'lucide-react';
 
 interface AgendaProps {
@@ -7,6 +7,7 @@ interface AgendaProps {
   services: Service[];
   startHour: string; // e.g. "08:00"
   endHour: string; // e.g. "20:00"
+  settings: BarberSettings;
   onAddBooking: (booking: Omit<Booking, 'id' | 'createdAt'>) => Promise<any>;
   onUpdateBooking: (id: string, update: Partial<Booking>) => Promise<void>;
   onDeleteBooking: (id: string) => Promise<void>;
@@ -17,6 +18,7 @@ export default function AdminAgenda({
   services,
   startHour,
   endHour,
+  settings,
   onAddBooking,
   onUpdateBooking,
   onDeleteBooking
@@ -34,7 +36,8 @@ export default function AdminAgenda({
     serviceId: "",
     notes: "",
     status: "agendado" as BookingStatus,
-    paymentMethod: "pix" as any
+    paymentMethod: "pix" as any,
+    barberName: ""
   });
 
   // Abre inclusão manual pré-selecionando horário
@@ -46,7 +49,8 @@ export default function AdminAgenda({
       serviceId: services[0]?.id || "",
       notes: "",
       status: "agendado",
-      paymentMethod: "pix"
+      paymentMethod: "pix",
+      barberName: settings.barbers?.[0] || ""
     });
     setShowAddModal(true);
   };
@@ -79,7 +83,8 @@ export default function AdminAgenda({
         time: selectedTimeSlot,
         status: formData.status,
         notes: formData.notes,
-        paymentMethod: formData.status === 'concluido' ? formData.paymentMethod : undefined
+        paymentMethod: formData.status === 'concluido' ? formData.paymentMethod : undefined,
+        barberName: formData.barberName
       });
       setShowAddModal(false);
     } catch (err) {
@@ -222,6 +227,11 @@ export default function AdminAgenda({
                         </div>
                         <p className={`text-xs text-zinc-400 mt-1 ${activeBooking.status === 'cancelado' ? 'line-through text-zinc-650' : ''}`}>
                           {activeBooking.serviceName} • <span className="font-mono text-amber-500 font-medium">R$ {activeBooking.servicePrice.toFixed(2)}</span>
+                          {activeBooking.barberName && (
+                            <span className="ml-2 inline-flex items-center gap-0.5 text-[10px] bg-zinc-800/80 text-amber-400/95 px-1.5 py-0.5 rounded font-sans scale-95 border border-zinc-700/50">
+                              ✂️ {activeBooking.barberName}
+                            </span>
+                          )}
                         </p>
                         {activeBooking.notes && (
                           <p className="text-[11px] text-amber-500/60 italic overflow-hidden text-ellipsis max-w-md mt-0.5">
@@ -345,6 +355,19 @@ export default function AdminAgenda({
               </div>
 
               <div className="space-y-1">
+                <label className="text-xs text-zinc-400 block font-medium">Selecione o Barbeiro *</label>
+                <select
+                  value={formData.barberName}
+                  onChange={(e) => setFormData({ ...formData, barberName: e.target.value })}
+                  className="bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 w-full text-sm text-white focus:outline-none focus:border-amber-500/50"
+                >
+                  {(settings.barbers || ["Carlos", "Thiago", "Marcos"]).map(b => (
+                    <option key={b} value={b}>{b}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
                 <label className="text-xs text-zinc-400 block font-medium">Observações adicionais</label>
                 <textarea
                   rows={2}
@@ -438,6 +461,10 @@ export default function AdminAgenda({
                   <span className="text-white font-semibold">{selectedBooking.serviceName}</span>
                 </div>
                 <div className="flex justify-between text-xs">
+                  <span className="text-zinc-500">Barbeiro Designado</span>
+                  <span className="text-white font-semibold">✂️ {selectedBooking.barberName || "Qualquer Barbeiro"}</span>
+                </div>
+                <div className="flex justify-between text-xs font-sans">
                   <span className="text-zinc-500">Valor do Serviço</span>
                   <span className="text-amber-500 font-mono font-bold">R$ {selectedBooking.servicePrice.toFixed(2)}</span>
                 </div>

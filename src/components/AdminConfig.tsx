@@ -13,7 +13,9 @@ create table if not exists barber_settings (
   logo_url text,
   start_hour text not null,
   end_hour text not null,
-  working_days integer[] not null
+  working_days integer[] not null,
+  barbers text[],
+  admin_name text
 );
 
 -- Criar tabela de serviços
@@ -39,6 +41,7 @@ create table if not exists bookings (
   status text not null,
   notes text,
   payment_method text,
+  barber_name text,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
@@ -130,6 +133,18 @@ export default function AdminConfig({ settings, onUpdateSettings }: ConfigProps)
           </div>
 
           <div className="space-y-1">
+            <label className="text-xs text-zinc-400 block font-medium">Nome do Administrador *</label>
+            <input
+              type="text"
+              required
+              value={formData.adminName || ''}
+              onChange={(e) => setFormData({ ...formData, adminName: e.target.value })}
+              className="bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 w-full text-sm text-white focus:outline-none focus:border-amber-500/50"
+              placeholder="Ex: Ricardo"
+            />
+          </div>
+
+          <div className="space-y-1">
             <label className="text-xs text-zinc-400 block font-medium">Telefone/WhatsApp de Contato *</label>
             <input
               type="text"
@@ -176,6 +191,81 @@ export default function AdminConfig({ settings, onUpdateSettings }: ConfigProps)
                 onChange={(e) => setFormData({ ...formData, endHour: e.target.value })}
                 className="bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 w-full text-sm text-white font-mono"
               />
+            </div>
+          </div>
+
+          <h4 className="text-sm font-semibold text-white border-b border-zinc-800 pb-3 pt-3">Equipe de Barbeiros (Profissionais)</h4>
+          
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Nome do Novo Barbeiro (ex: Daniel)"
+                id="new-barber-input"
+                className="bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50 flex-1"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const input = e.currentTarget;
+                    const val = input.value.trim();
+                    if (val) {
+                      const currentBarbers = formData.barbers || [];
+                      if (!currentBarbers.includes(val)) {
+                        setFormData({
+                          ...formData,
+                          barbers: [...currentBarbers, val]
+                        });
+                        input.value = '';
+                      }
+                    }
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                onClick={() => {
+                  const el = document.getElementById('new-barber-input') as HTMLInputElement;
+                  const val = el?.value.trim();
+                  if (val) {
+                    const currentBarbers = formData.barbers || [];
+                    if (!currentBarbers.includes(val)) {
+                      setFormData({
+                        ...formData,
+                        barbers: [...currentBarbers, val]
+                      });
+                      el.value = '';
+                    }
+                  }
+                }}
+              >
+                Adicionar
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {(formData.barbers || []).length === 0 ? (
+                <span className="text-xs text-zinc-500 italic">Nenhum barbeiro cadastrado. Adicione um profissional acima!</span>
+              ) : (
+                (formData.barbers || []).map((barber) => (
+                  <span
+                    key={barber}
+                    className="flex items-center gap-1.5 bg-zinc-950 border border-zinc-850 rounded-xl px-3 py-1.5 text-xs text-zinc-300"
+                  >
+                    <span>{barber}</span>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({
+                        ...formData,
+                        barbers: (formData.barbers || []).filter(b => b !== barber)
+                      })}
+                      className="text-zinc-500 hover:text-red-400 font-bold ml-1 text-sm focus:outline-none w-4 h-4 flex items-center justify-center rounded-full hover:bg-white/5"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))
+              )}
             </div>
           </div>
 

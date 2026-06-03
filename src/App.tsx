@@ -906,6 +906,7 @@ export default function App() {
                     clients={clients}
                     transactions={transactions}
                     services={services}
+                    settings={settings}
                     onNavigateTab={setAdminTab}
                   />
                 )}
@@ -916,6 +917,7 @@ export default function App() {
                     services={services}
                     startHour={settings.startHour}
                     endHour={settings.endHour}
+                    settings={settings}
                     onAddBooking={handleAddBooking}
                     onUpdateBooking={handleUpdateBooking}
                     onDeleteBooking={handleDeleteBooking}

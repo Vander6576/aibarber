@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Booking, Client, Transaction, Service } from '../types';
+import { Booking, Client, Transaction, Service, BarberSettings } from '../types';
 import { 
   TrendingUp, 
   Users, 
@@ -21,10 +21,11 @@ interface DashboardProps {
   clients: Client[];
   transactions: Transaction[];
   services: Service[];
+  settings: BarberSettings;
   onNavigateTab: (tab: any) => void;
 }
 
-export default function AdminDashboard({ bookings, clients, transactions, services, onNavigateTab }: DashboardProps) {
+export default function AdminDashboard({ bookings, clients, transactions, services, settings, onNavigateTab }: DashboardProps) {
   const [metrics, setMetrics] = useState({
     dailyRevenue: 0,
     monthlyRevenue: 0,
@@ -130,7 +131,7 @@ export default function AdminDashboard({ bookings, clients, transactions, servic
         <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl pointer-events-none"></div>
         <div>
           <h1 className="text-2xl font-display font-semibold tracking-tight text-white flex items-center gap-2">
-            Olá, Ricardo 👋 <Sparkles className="h-5 w-5 text-amber-500 animate-pulse" />
+            Olá, {settings.adminName || 'Ricardo'} 👋 <Sparkles className="h-5 w-5 text-amber-500 animate-pulse" />
           </h1>
           <p className="text-zinc-400 text-sm mt-1">Você tem {metrics.dailyBookingsCount} agendamentos para o dia de hoje.</p>
         </div>

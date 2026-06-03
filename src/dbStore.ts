@@ -82,7 +82,9 @@ function mapSettingsFromDb(data: any): BarberSettings {
     logoUrl: data.logo_url || '',
     startHour: data.start_hour,
     endHour: data.end_hour,
-    workingDays: data.working_days || []
+    workingDays: data.working_days || [],
+    barbers: data.barbers || [],
+    adminName: data.admin_name || 'Ricardo'
   };
 }
 
@@ -95,7 +97,9 @@ function mapSettingsToDb(data: BarberSettings): any {
     logo_url: data.logoUrl || '',
     start_hour: data.startHour,
     end_hour: data.endHour,
-    working_days: data.workingDays || []
+    working_days: data.workingDays || [],
+    barbers: data.barbers || [],
+    admin_name: data.adminName || 'Ricardo'
   };
 }
 
@@ -112,6 +116,7 @@ function mapBookingFromDb(data: any): Booking {
     status: data.status,
     notes: data.notes || '',
     paymentMethod: data.payment_method || undefined,
+    barberName: data.barber_name || '',
     createdAt: data.created_at
   };
 }
@@ -129,6 +134,7 @@ function mapBookingToDb(data: any): any {
     status: data.status,
     notes: data.notes || null,
     payment_method: data.paymentMethod || null,
+    barber_name: data.barberName || null,
     created_at: data.createdAt
   };
 }
@@ -199,7 +205,9 @@ const DEFAULT_SETTINGS: BarberSettings = {
   logoUrl: "",
   startHour: "08:00",
   endHour: "20:00",
-  workingDays: [1, 2, 3, 4, 5, 6] // Segunda a Sábado
+  workingDays: [1, 2, 3, 4, 5, 6], // Segunda a Sábado
+  barbers: ["Carlos", "Thiago", "Marcos"],
+  adminName: "Ricardo"
 };
 
 const DEFAULT_SERVICES: Service[] = [
@@ -207,7 +215,12 @@ const DEFAULT_SERVICES: Service[] = [
   { id: "s2", name: "Barba Terapia Imperial", price: 35.00, duration: 30, description: "Alinhamento de barba com toalha quente, óleos de hidratação e balm protector." },
   { id: "s3", name: "Combo Imperador (Corte + Barba)", price: 75.00, duration: 60, description: "Corte degradê de alta classe mais Barba Terapia premiada com toalha quente." },
   { id: "s4", name: "Sobrancelha Navalhada", price: 20.00, duration: 15, description: "Design e limpeza das sobrancelhas feito de forma detalhada na navalha." },
-  { id: "s5", name: "Pigmentação de Barba/Cabelo", price: 40.00, duration: 45, description: "Disparidade e falhas camufladas com pigmentos especiais de alta fixação." }
+  { id: "s5", name: "Pigmentação de Barba/Cabelo", price: 40.00, duration: 45, description: "Disparidade e falhas camufladas com pigmentos especiais de alta fixação." },
+  { id: "s6", name: "Corte Infantil (Kids)", price: 40.00, duration: 30, description: "Atendimento paciencioso para os pequenos com corte moderno e finalização divertida." },
+  { id: "s7", name: "Selagem Térmica Capilar", price: 120.00, duration: 90, description: "Redução de volume, alinhamento dos fios e hidratação profunda com ativos nobres." },
+  { id: "s8", name: "Platinado / Nevou Completo", price: 150.00, duration: 120, description: "Descoloração global segura de alto rendimento e matização para o tom platinado impecável." },
+  { id: "s9", name: "Lavagem Premium com Massagem", price: 25.00, duration: 15, description: "Lavagem com shampoo refrescante de hortelã acompanhado de massagem capilar relaxante." },
+  { id: "s10", name: "Acabamento / Pezinho Navalhado", price: 15.00, duration: 15, description: "Limpeza das laterais e nuca na navalha para manter o visual em dia entre os cortes." }
 ];
 
 // Helper to get formatted date relative to today
@@ -229,6 +242,7 @@ const getMockBookings = (): Booking[] => [
     time: "09:00",
     status: "concluido",
     paymentMethod: "pix",
+    barberName: "Carlos",
     createdAt: new Date().toISOString()
   },
   {
@@ -241,6 +255,7 @@ const getMockBookings = (): Booking[] => [
     date: getOffsetDate(0),
     time: "10:30",
     status: "agendado",
+    barberName: "Thiago",
     createdAt: new Date().toISOString()
   },
   {
@@ -253,6 +268,7 @@ const getMockBookings = (): Booking[] => [
     date: getOffsetDate(0),
     time: "14:00",
     status: "agendado",
+    barberName: "Marcos",
     createdAt: new Date().toISOString()
   },
   {
@@ -317,16 +333,85 @@ const getMockBookings = (): Booking[] => [
     status: "concluido",
     paymentMethod: "pix",
     createdAt: new Date(Date.now() - 259200000).toISOString()
+  },
+  {
+    id: "b9",
+    clientName: "Gustavo Santos",
+    clientWhatsApp: "(11) 93333-4444",
+    serviceId: "s7",
+    serviceName: "Selagem Térmica Capilar",
+    servicePrice: 120.00,
+    date: getOffsetDate(1),
+    time: "14:30",
+    status: "agendado",
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "b10",
+    clientName: "Arthur Medeiros",
+    clientWhatsApp: "(11) 92222-3333",
+    serviceId: "s1",
+    serviceName: "Corte Masculino Degradê",
+    servicePrice: 50.00,
+    date: getOffsetDate(-1),
+    time: "16:00",
+    status: "concluido",
+    paymentMethod: "pix",
+    createdAt: new Date(Date.now() - 86400000).toISOString()
+  },
+  {
+    id: "b11",
+    clientName: "Rodrigo Lima",
+    clientWhatsApp: "(11) 95555-9999",
+    serviceId: "s1",
+    serviceName: "Corte Masculino Degradê",
+    servicePrice: 50.00,
+    date: getOffsetDate(0),
+    time: "11:30",
+    status: "agendado",
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "b12",
+    clientName: "Rafael Teixeira",
+    clientWhatsApp: "(11) 97777-8888",
+    serviceId: "s5",
+    serviceName: "Pigmentação de Barba/Cabelo",
+    servicePrice: 40.00,
+    date: getOffsetDate(-2),
+    time: "13:00",
+    status: "concluido",
+    paymentMethod: "cartao",
+    createdAt: new Date(Date.now() - 172800000).toISOString()
+  },
+  {
+    id: "b13",
+    clientName: "Leonardo Pereira",
+    clientWhatsApp: "(11) 91111-9999",
+    serviceId: "s3",
+    serviceName: "Combo Imperador (Corte + Barba)",
+    servicePrice: 75.00,
+    date: getOffsetDate(-4),
+    time: "09:30",
+    status: "concluido",
+    paymentMethod: "dinheiro",
+    createdAt: new Date(Date.now() - 345600000).toISOString()
   }
 ];
 
 const getMockClients = (): Client[] => [
-  { id: "c1", name: "Luiz Silva", whatsapp: "(11) 98888-1111", birthDate: "1994-08-12", notes: "Sempre corta degradê navalhado. Gosta de café expresso.", createdAt: new Date().toISOString(), totalBookings: 2, totalSpent: 95.00 },
+  { id: "c1", name: "Luiz Silva", whatsapp: "(11) 98888-1111", birthDate: "1994-08-12", notes: "Sempre corta degradê navalhado. Gosta de café expresso. Amigo do dono.", createdAt: new Date().toISOString(), totalBookings: 2, totalSpent: 95.00 },
   { id: "c2", name: "Marcos Oliveira", whatsapp: "(11) 97777-2222", birthDate: "1991-03-24", notes: "Prefere riscar o cabelo na lateral esquerda.", createdAt: new Date().toISOString(), totalBookings: 2, totalSpent: 100.00 },
   { id: "c3", name: "Carlos Souza", whatsapp: "(11) 96666-3333", birthDate: "1988-11-05", notes: "Cabelo crespo clássico, tesoura em cima.", createdAt: new Date().toISOString(), totalBookings: 1, totalSpent: 35.00 },
-  { id: "c4", name: "Pedro Albuquerque", whatsapp: "(11) 95555-4444", birthDate: "2000-01-15", notes: "Alérgico a ceras fortes.", createdAt: new Date().toISOString(), totalBookings: 1, totalSpent: 0.00 },
+  { id: "c4", name: "Pedro Albuquerque", whatsapp: "(11) 95555-4444", birthDate: "2000-01-15", notes: "Alérgico a ceras fortes. Prefere lavagem simples.", createdAt: new Date().toISOString(), totalBookings: 1, totalSpent: 0.00 },
   { id: "c5", name: "Bruno Martins", whatsapp: "(11) 94444-5555", birthDate: "1997-07-30", notes: "Usa barba cheia bem desenhada.", createdAt: new Date().toISOString(), totalBookings: 1, totalSpent: 75.00 },
-  { id: "c6", name: "Sérgio Ramos", whatsapp: "(11) 91111-2222", birthDate: "1989-10-10", notes: "Gosta de corte militar baixo.", createdAt: new Date().toISOString(), totalBookings: 1, totalSpent: 75.00 }
+  { id: "c6", name: "Sérgio Ramos", whatsapp: "(11) 91111-2222", birthDate: "1989-10-10", notes: "Gosta de corte militar baixo. Prefere horário de almoço.", createdAt: new Date().toISOString(), totalBookings: 1, totalSpent: 75.00 },
+  { id: "c7", name: "Gustavo Santos", whatsapp: "(11) 93333-4444", birthDate: "1992-12-01", notes: "Faz selagem de 3 em 3 meses. Gosta de bater papo nos finais de semana.", createdAt: new Date().toISOString(), totalBookings: 4, totalSpent: 260.00 },
+  { id: "c8", name: "Arthur Medeiros", whatsapp: "(11) 92222-3333", birthDate: "1995-05-18", notes: "Cortador de cabelo conservador, prefere tesoura clássica e conversa sobre esporte.", createdAt: new Date().toISOString(), totalBookings: 3, totalSpent: 150.00 },
+  { id: "c9", name: "Felipe Costa", whatsapp: "(11) 94444-8888", birthDate: "1987-04-14", notes: "Extremamente pontual. Prefere utilizar pomada de efeito matte seco.", createdAt: new Date().toISOString(), totalBookings: 1, totalSpent: 50.00 },
+  { id: "c10", name: "Rodrigo Lima", whatsapp: "(11) 95555-9999", birthDate: "1990-09-09", notes: "Alinha a sobrancelha na navalha e gosta do degradê intermediário (mid fade).", createdAt: new Date().toISOString(), totalBookings: 5, totalSpent: 215.00 },
+  { id: "c11", name: "Rafael Teixeira", whatsapp: "(11) 97777-8888", birthDate: "1993-02-10", notes: "Faz pigmentação na barba e no pezinho toda vez que vem.", createdAt: new Date().toISOString(), totalBookings: 3, totalSpent: 120.00 },
+  { id: "c12", name: "Leonardo Pereira", whatsapp: "(11) 91111-9999", birthDate: "1985-05-05", notes: "Usa barba longa tradicional bem cuidada. Gosta de toalha quente e massagem capilar.", createdAt: new Date().toISOString(), totalBookings: 6, totalSpent: 300.00 }
 ];
 
 const getMockTransactions = (): Transaction[] => [
@@ -335,24 +420,48 @@ const getMockTransactions = (): Transaction[] => [
   { id: "t3", type: "receita", amount: 50.00, date: getOffsetDate(-2), description: "Atendimento - Marcos Oliveira (Corte)", paymentMethod: "cartao", bookingId: "b7", createdAt: new Date(Date.now() - 172800000).toISOString() },
   { id: "t4", type: "receita", amount: 75.00, date: getOffsetDate(-3), description: "Atendimento - Sérgio Ramos (Combo Imperador)", paymentMethod: "pix", bookingId: "b8", createdAt: new Date(Date.now() - 259200000).toISOString() },
   { id: "t5", type: "despesa", amount: 120.00, date: getOffsetDate(-2), description: "Compra de toalhas de algodão e lâminas", paymentMethod: "pix", createdAt: new Date(Date.now() - 172800000).toISOString() },
-  { id: "t6", type: "despesa", amount: 80.00, date: getOffsetDate(-4), description: "Produtos descartáveis de assepsia", paymentMethod: "dinheiro", createdAt: new Date(Date.now() - 345600000).toISOString() }
+  { id: "t6", type: "despesa", amount: 80.00, date: getOffsetDate(-4), description: "Produtos descartáveis de assepsia", paymentMethod: "dinheiro", createdAt: new Date(Date.now() - 345600000).toISOString() },
+  { id: "t7", type: "receita", amount: 50.00, date: getOffsetDate(-1), description: "Atendimento - Arthur Medeiros (Corte)", paymentMethod: "pix", bookingId: "b10", createdAt: new Date(Date.now() - 86400000).toISOString() },
+  { id: "t8", type: "receita", amount: 40.00, date: getOffsetDate(-2), description: "Atendimento - Rafael Teixeira (Pigmentação)", paymentMethod: "cartao", bookingId: "b12", createdAt: new Date(Date.now() - 172800000).toISOString() },
+  { id: "t9", type: "receita", amount: 75.00, date: getOffsetDate(-4), description: "Atendimento - Leonardo Pereira (Combo Imperador)", paymentMethod: "dinheiro", bookingId: "b13", createdAt: new Date(Date.now() - 345600000).toISOString() },
+  { id: "t10", type: "despesa", amount: 55.00, date: getOffsetDate(-1), description: "Taxa de publicidade redes sociais", paymentMethod: "cartao", createdAt: new Date(Date.now() - 86400000).toISOString() },
+  { id: "t11", type: "despesa", amount: 450.00, date: getOffsetDate(-3), description: "Aluguel parcial da cadeira de barbeiro", paymentMethod: "pix", createdAt: new Date(Date.now() - 259200000).toISOString() }
 ];
 
 // Instanciação em localStorage ao carregar
 function initLocalStorage() {
   if (!localStorage.getItem('barber_settings')) {
     localStorage.setItem('barber_settings', JSON.stringify(DEFAULT_SETTINGS));
+  } else {
+    // Migração de esquema se barbeiros estiver ausente
+    try {
+      const existing = JSON.parse(localStorage.getItem('barber_settings') || '{}');
+      let changed = false;
+      if (!existing.barbers || !Array.isArray(existing.barbers) || existing.barbers.length === 0) {
+        existing.barbers = ["Carlos", "Thiago", "Marcos"];
+        changed = true;
+      }
+      if (!existing.adminName) {
+        existing.adminName = "Ricardo";
+        changed = true;
+      }
+      if (changed) {
+        localStorage.setItem('barber_settings', JSON.stringify(existing));
+      }
+    } catch (e) {
+      console.warn("Failed to migrate settings:", e);
+    }
   }
-  if (!localStorage.getItem('barber_services')) {
+  if (!localStorage.getItem('barber_services') || JSON.parse(localStorage.getItem('barber_services') || '[]').length <= 5) {
     localStorage.setItem('barber_services', JSON.stringify(DEFAULT_SERVICES));
   }
-  if (!localStorage.getItem('barber_bookings')) {
+  if (!localStorage.getItem('barber_bookings') || JSON.parse(localStorage.getItem('barber_bookings') || '[]').length <= 8) {
     localStorage.setItem('barber_bookings', JSON.stringify(getMockBookings()));
   }
-  if (!localStorage.getItem('barber_clients')) {
+  if (!localStorage.getItem('barber_clients') || JSON.parse(localStorage.getItem('barber_clients') || '[]').length <= 6) {
     localStorage.setItem('barber_clients', JSON.stringify(getMockClients()));
   }
-  if (!localStorage.getItem('barber_transactions')) {
+  if (!localStorage.getItem('barber_transactions') || JSON.parse(localStorage.getItem('barber_transactions') || '[]').length <= 6) {
     localStorage.setItem('barber_transactions', JSON.stringify(getMockTransactions()));
   }
 }
@@ -597,7 +706,17 @@ export const dbStore = {
           .select('*')
           .order('date', { ascending: false });
         if (error) throw error;
-        return (data || []).map(mapBookingFromDb);
+        if (data && data.length > 0) {
+          return (data || []).map(mapBookingFromDb);
+        } else {
+          try {
+            const mocks = getMockBookings();
+            await supabase.from('bookings').insert(mocks.map(mapBookingToDb));
+          } catch (insertErr) {
+            console.warn("Could not auto-populate bookings in Supabase:", insertErr);
+          }
+          return getMockBookings();
+        }
       } catch (error) {
         console.warn("Supabase getBookings failed, checking Firebase/Local fallback:", error);
       }
@@ -892,7 +1011,17 @@ export const dbStore = {
           .select('*')
           .order('name');
         if (error) throw error;
-        return (data || []).map(mapClientFromDb);
+        if (data && data.length > 0) {
+          return (data || []).map(mapClientFromDb);
+        } else {
+          try {
+            const mocks = getMockClients();
+            await supabase.from('clients').insert(mocks.map(mapClientToDb));
+          } catch (insertErr) {
+            console.warn("Could not auto-populate clients in Supabase:", insertErr);
+          }
+          return getMockClients();
+        }
       } catch (error) {
         console.warn("Supabase getClients failed, checking Firebase/Local fallback:", error);
       }
@@ -1070,7 +1199,17 @@ export const dbStore = {
           .select('*')
           .order('date', { ascending: false });
         if (error) throw error;
-        return (data || []).map(mapTransactionFromDb);
+        if (data && data.length > 0) {
+          return (data || []).map(mapTransactionFromDb);
+        } else {
+          try {
+            const mocks = getMockTransactions();
+            await supabase.from('transactions').insert(mocks.map(mapTransactionToDb));
+          } catch (insertErr) {
+            console.warn("Could not auto-populate transactions in Supabase:", insertErr);
+          }
+          return getMockTransactions();
+        }
       } catch (error) {
         console.warn("Supabase getTransactions failed, checking Firebase/Local fallback:", error);
       }

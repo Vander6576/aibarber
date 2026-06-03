@@ -21,6 +21,7 @@ export interface Booking {
   status: BookingStatus;
   notes?: string;
   paymentMethod?: 'pix' | 'dinheiro' | 'cartao';
+  barberName?: string;
   createdAt: string;
 }
 
@@ -55,6 +56,8 @@ export interface BarberSettings {
   startHour: string; // HH:MM
   endHour: string; // HH:MM
   workingDays: number[]; // 0 for Sunday, 1 for Monday, etc.
+  barbers?: string[];
+  adminName?: string;
 }
 
 export type ViewType = 'client-schedule' | 'client-lookup' | 'admin';
