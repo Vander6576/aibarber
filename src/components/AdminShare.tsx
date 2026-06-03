@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Copy, Check, Share2, MessageSquare, Send, Mail, QrCode } from 'lucide-react';
+import { Copy, Check, Share2, MessageSquare, Send, Mail, QrCode, X } from 'lucide-react';
 
 export default function AdminShare() {
   const [copied, setCopied] = useState(false);
