@@ -124,7 +124,17 @@ interface ConfigProps {
 }
 
 export default function AdminConfig({ settings, onUpdateSettings }: ConfigProps) {
-  const [formData, setFormData] = useState<BarberSettings>({ ...settings });
+  const [formData, setFormData] = useState<BarberSettings>({
+    name: settings?.name || '',
+    address: settings?.address || '',
+    phone: settings?.phone || '',
+    logoUrl: settings?.logoUrl || '',
+    startHour: settings?.startHour || '',
+    endHour: settings?.endHour || '',
+    workingDays: settings?.workingDays || [],
+    barbers: settings?.barbers || [],
+    adminName: settings?.adminName || ''
+  });
   const [isSaved, setIsSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -133,7 +143,19 @@ export default function AdminConfig({ settings, onUpdateSettings }: ConfigProps)
 
   // Sincroniza o estado do formulário se as configurações forem recarregadas no componente pai
   useEffect(() => {
-    setFormData({ ...settings });
+    if (settings) {
+      setFormData({
+        name: settings.name || '',
+        address: settings.address || '',
+        phone: settings.phone || '',
+        logoUrl: settings.logoUrl || '',
+        startHour: settings.startHour || '',
+        endHour: settings.endHour || '',
+        workingDays: settings.workingDays || [],
+        barbers: settings.barbers || [],
+        adminName: settings.adminName || ''
+      });
+    }
   }, [settings]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -191,7 +213,7 @@ export default function AdminConfig({ settings, onUpdateSettings }: ConfigProps)
             <input
               type="text"
               required
-              value={formData.name}
+              value={formData.name || ''}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               className="bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 w-full text-sm text-white focus:outline-none focus:border-amber-500/50"
             />
@@ -239,7 +261,7 @@ export default function AdminConfig({ settings, onUpdateSettings }: ConfigProps)
             <input
               type="text"
               required
-              value={formData.phone}
+              value={formData.phone || ''}
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
               className="bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 w-full text-sm text-white focus:outline-none focus:border-amber-500/50"
             />
@@ -250,7 +272,7 @@ export default function AdminConfig({ settings, onUpdateSettings }: ConfigProps)
             <input
               type="text"
               required
-              value={formData.address}
+              value={formData.address || ''}
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
               className="bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 w-full text-sm text-white focus:outline-none focus:border-amber-500/50"
             />
@@ -265,7 +287,7 @@ export default function AdminConfig({ settings, onUpdateSettings }: ConfigProps)
                 type="text"
                 required
                 placeholder="08:00"
-                value={formData.startHour}
+                value={formData.startHour || ''}
                 onChange={(e) => setFormData({ ...formData, startHour: e.target.value })}
                 className="bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 w-full text-sm text-white font-mono"
               />
@@ -277,7 +299,7 @@ export default function AdminConfig({ settings, onUpdateSettings }: ConfigProps)
                 type="text"
                 required
                 placeholder="20:00"
-                value={formData.endHour}
+                value={formData.endHour || ''}
                 onChange={(e) => setFormData({ ...formData, endHour: e.target.value })}
                 className="bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 w-full text-sm text-white font-mono"
               />
