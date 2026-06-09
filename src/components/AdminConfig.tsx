@@ -83,9 +83,23 @@ alter table transactions enable row level security;
 
 -- 7. Políticas de Segurança (Policies)
 
+-- Remover políticas antigas se existirem para evitar erros de duplicidade
+drop policy if exists "Qualquer pessoa pode ler as configurações" on barber_settings;
+drop policy if exists "Apenas admins autenticados gerenciam as configurações" on barber_settings;
+drop policy if exists "Apenas admins autenticados editam suas configurações" on barber_settings;
+drop policy if exists "Público lê serviços" on services;
+drop policy if exists "Admins editam serviços" on services;
+drop policy if exists "Público cria agendamentos" on bookings;
+drop policy if exists "Público consulta agendamentos" on bookings;
+drop policy if exists "Admins gerenciam agendamentos" on bookings;
+drop policy if exists "Público cria cadastro cliente" on clients;
+drop policy if exists "Público consulta cadastro cliente" on clients;
+drop policy if exists "Admins gerenciam clientes" on clients;
+drop policy if exists "Admins gerenciam transações" on transactions;
+
 -- Configurações (Apenas admins modificam, público lê)
 create policy "Qualquer pessoa pode ler as configurações" on barber_settings for select using (true);
-create policy "Apenas admins autenticados editam suas configurações" on barber_settings for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "Apenas admins autenticados gerenciam as configurações" on barber_settings for all to authenticated using (true) with check (true);
 
 -- Serviços (Admins editam, público lê)
 create policy "Público lê serviços" on services for select using (true);

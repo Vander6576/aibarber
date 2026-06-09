@@ -499,8 +499,16 @@ export const dbStore = {
           .maybeSingle();
         if (error) throw error;
         if (data) {
-          return mapSettingsFromDb(data);
+          const settings = mapSettingsFromDb(data);
+          // Sempre mantém o localStorage atualizado com o valor real obtido do banco de dados na nuvem
+          localStorage.setItem('barber_settings', JSON.stringify(settings));
+          return settings;
         } else {
+          // Se o banco retornar vazio (por exemplo, por falta de registro ou omissão de leitura RLS),
+          // priorizamos as configurações que já existem no localStorage do usuário em vez de resetar bruto.
+          const localStr = localStorage.getItem('barber_settings');
+          const currentSettings = localStr ? JSON.parse(localStr) : DEFAULT_SETTINGS;
+          
           try {
             let userId: string | null = null;
             try {
@@ -508,12 +516,12 @@ export const dbStore = {
               userId = user?.id || null;
             } catch (err) {}
             
-            const defaultPayload = mapSettingsToDb(DEFAULT_SETTINGS, userId);
-            const { error: upsertErr } = await supabase.from('barber_settings').upsert([defaultPayload]);
+            const payload = mapSettingsToDb(currentSettings, userId);
+            const { error: upsertErr } = await supabase.from('barber_settings').upsert([payload]);
             if (upsertErr) {
               const errMsg = (upsertErr.message || '').toLowerCase();
               if (errMsg.includes('user_id') && (errMsg.includes('column') || errMsg.includes('exist'))) {
-                const cleanPayload = { ...defaultPayload };
+                const cleanPayload = { ...payload };
                 delete cleanPayload.user_id;
                 await supabase.from('barber_settings').upsert([cleanPayload]);
               } else {
@@ -521,9 +529,9 @@ export const dbStore = {
               }
             }
           } catch (upsertErr) {
-            console.warn("Could not upsert default settings in Supabase:", upsertErr);
+            console.warn("Could not upsert settings in Supabase during registration:", upsertErr);
           }
-          return DEFAULT_SETTINGS;
+          return currentSettings;
         }
       } catch (error) {
         console.warn("Supabase getSettings failed, checking Firebase/Local fallback:", error);
