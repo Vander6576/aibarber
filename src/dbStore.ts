@@ -270,9 +270,9 @@ export const dbStore = {
               adminName: user.email?.split('@')[0] || "Administrador"
             };
             const payload = mapSettingsToDb(defaultNewSettings, user.id);
-            const { error: upsertErr } = await supabase.from('barber_settings').upsert([payload]);
-            if (upsertErr) {
-              console.warn("Could not initialize default settings:", upsertErr);
+            const { error: insertErr } = await supabase.from('barber_settings').insert([payload]);
+            if (insertErr) {
+              console.warn("Could not initialize default settings:", insertErr);
             }
             return defaultNewSettings;
           }
@@ -341,11 +341,32 @@ export const dbStore = {
         }
 
         const dbPayload = mapSettingsToDb(settings, userId);
-        const { error } = await supabase
+        
+        const { data: existing, error: findError } = await supabase
           .from('barber_settings')
-          .upsert([dbPayload]);
+          .select('id')
+          .eq('user_id', userId)
+          .maybeSingle();
 
-        if (error) throw error;
+        if (findError) throw findError;
+
+        if (existing) {
+          // Se o registro existe, atualiza os campos de dados sem alterar "id" ou "user_id" para evitar conflito de chave
+          const { id, user_id, ...updatePayload } = dbPayload;
+          const { error: updateError } = await supabase
+            .from('barber_settings')
+            .update(updatePayload)
+            .eq('user_id', userId);
+
+          if (updateError) throw updateError;
+        } else {
+          // Se não existe, podemos inserir com segurança
+          const { error: insertError } = await supabase
+            .from('barber_settings')
+            .insert([dbPayload]);
+
+          if (insertError) throw insertError;
+        }
       } catch (error) {
         handleSupabaseError(error, 'updateSettings');
         throw error;
