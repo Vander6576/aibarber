@@ -102,13 +102,14 @@ export default function App() {
         }
         setCurrentView('client-schedule');
       }
+      loadDatabase();
     };
 
     handleLocationChange();
 
     window.addEventListener('popstate', handleLocationChange);
     return () => window.removeEventListener('popstate', handleLocationChange);
-  }, []);
+  }, [isAdminLoggedIn]);
 
   const navigateToView = (view: ViewType) => {
     let urlPath = "/";
@@ -118,6 +119,7 @@ export default function App() {
 
     window.history.pushState({}, "", urlPath);
     setCurrentView(view);
+    loadDatabase();
   };
 
   // --- CARREGAMENTO DE DADOS BANCO DE DADOS ---
