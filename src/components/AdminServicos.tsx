@@ -120,7 +120,7 @@ export default function AdminServicos({ services, onAddService, onUpdateService,
         {services.length === 0 ? (
           <div className="col-span-full bg-[#121212] border border-white/5 p-10 rounded-3xl text-center text-zinc-500 flex flex-col items-center">
             <Sparkles className="h-10 w-10 text-zinc-750 mb-3" />
-            <p className="text-sm">Nenhum serviço disponível no catálogo atualmente.</p>
+            <p className="text-sm">Nenhum dado cadastrado.</p>
           </div>
         ) : (
           services.map((srv) => (

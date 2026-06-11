@@ -120,7 +120,7 @@ export default function PublicClientArea({ services, bookings, settings, onAddBo
     let isMounted = true;
     const fetchBookingsForDate = async () => {
       try {
-        const data = await dbStore.getBookingsByDate(selectedDate);
+        const data = await dbStore.getBookingsByDate(selectedDate, settings.userId);
         if (isMounted) {
           setActiveDateBookings(data);
         }
@@ -224,7 +224,7 @@ export default function PublicClientArea({ services, bookings, settings, onAddBo
     }
 
     try {
-      const data = await dbStore.getBookingsByWhatsApp(searchPhone);
+      const data = await dbStore.getBookingsByWhatsApp(searchPhone, settings.userId);
       const matched = data.sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
       setSearchedBookings(matched);
       setHasSearched(true);

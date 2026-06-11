@@ -7,7 +7,7 @@ import { isSupabaseEnabled } from '../supabase';
 const SUPABASE_MIGRATION_SQL = `-- 1. Criar tabela de configurações da barbearia (com relacionamento user_id com auth.users)
 create table if not exists barber_settings (
   id text primary key,
-  user_id uuid references auth.users(id),
+  user_id uuid references auth.users(id) on delete cascade,
   name text not null,
   address text not null,
   phone text not null,
@@ -19,12 +19,13 @@ create table if not exists barber_settings (
   admin_name text
 );
 
--- Se a tabela já exists, garanta que a coluna user_id esteja presente para RLS
-alter table if exists barber_settings add column if not exists user_id uuid references auth.users(id);
+-- Forçar que exista uma coluna user_id e chave estrangeira em todas as tabelas
+alter table if exists barber_settings add column if not exists user_id uuid references auth.users(id) on delete cascade;
 
 -- 2. Criar tabela de serviços
 create table if not exists services (
   id text primary key,
+  user_id uuid references auth.users(id) on delete cascade,
   name text not null,
   price numeric not null,
   duration integer not null,
@@ -32,9 +33,12 @@ create table if not exists services (
   category text
 );
 
+alter table if exists services add column if not exists user_id uuid references auth.users(id) on delete cascade;
+
 -- 3. Criar tabela de agendamentos
 create table if not exists bookings (
   id text primary key,
+  user_id uuid references auth.users(id) on delete cascade,
   client_name text not null,
   client_whatsapp text not null,
   service_id text not null,
@@ -49,9 +53,12 @@ create table if not exists bookings (
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
+alter table if exists bookings add column if not exists user_id uuid references auth.users(id) on delete cascade;
+
 -- 4. Criar tabela de clientes (CRM)
 create table if not exists clients (
   id text primary key,
+  user_id uuid references auth.users(id) on delete cascade,
   name text not null,
   phone text,
   whatsapp text not null,
@@ -62,9 +69,12 @@ create table if not exists clients (
   total_spent numeric default 0 not null
 );
 
+alter table if exists clients add column if not exists user_id uuid references auth.users(id) on delete cascade;
+
 -- 5. Criar tabela de transações (Financeiro)
 create table if not exists transactions (
   id text primary key,
+  user_id uuid references auth.users(id) on delete cascade,
   type text not null,
   amount numeric not null,
   date text not null,
@@ -74,6 +84,8 @@ create table if not exists transactions (
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
+alter table if exists transactions add column if not exists user_id uuid references auth.users(id) on delete cascade;
+
 -- 6. Habilitar RLS (Row Level Security) para segurança robusta
 alter table barber_settings enable row level security;
 alter table services enable row level security;
@@ -81,42 +93,51 @@ alter table bookings enable row level security;
 alter table clients enable row level security;
 alter table transactions enable row level security;
 
--- 7. Políticas de Segurança (Policies)
-
--- Remover políticas antigas se existirem para evitar erros de duplicidade
+-- 7. Remover políticas antigas se existirem para evitar erros de duplicidade
 drop policy if exists "Qualquer pessoa pode ler as configurações" on barber_settings;
 drop policy if exists "Apenas admins autenticados gerenciam as configurações" on barber_settings;
-drop policy if exists "Apenas admins autenticados editam suas configurações" on barber_settings;
+drop policy if exists "Administradores gerenciam suas próprias configurações" on barber_settings;
 drop policy if exists "Público lê serviços" on services;
 drop policy if exists "Admins editam serviços" on services;
+drop policy if exists "Administradores gerenciam seus próprios serviços" on services;
 drop policy if exists "Público cria agendamentos" on bookings;
 drop policy if exists "Público consulta agendamentos" on bookings;
+drop policy if exists "Público lê agendamentos" on bookings;
 drop policy if exists "Admins gerenciam agendamentos" on bookings;
+drop policy if exists "Administradores gerenciam seus próprios agendamentos" on bookings;
 drop policy if exists "Público cria cadastro cliente" on clients;
 drop policy if exists "Público consulta cadastro cliente" on clients;
+drop policy if exists "Público cria e edita clientes" on clients;
+drop policy if exists "Público lê clientes" on clients;
+drop policy if exists "Público atualiza clientes" on clients;
 drop policy if exists "Admins gerenciam clientes" on clients;
+drop policy if exists "Administradores gerenciam seus próprios clientes" on clients;
 drop policy if exists "Admins gerenciam transações" on transactions;
+drop policy if exists "Administradores gerenciam suas próprias transações" on transactions;
 
--- Configurações (Apenas admins modificam, público lê)
-create policy "Qualquer pessoa pode ler as configurações" on barber_settings for select using (true);
-create policy "Apenas admins autenticados gerenciam as configurações" on barber_settings for all to authenticated using (true) with check (true);
+-- 8. Definir políticas RLS robustas e isoladas por user_id
 
--- Serviços (Admins editam, público lê)
+-- CONFIGURAÇÕES (barber_settings)
+create policy "Público lê configurações" on barber_settings for select using (true);
+create policy "Administradores gerenciam suas próprias configurações" on barber_settings for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- SERVIÇOS (services)
 create policy "Público lê serviços" on services for select using (true);
-create policy "Admins editam serviços" on services for all to authenticated using (true);
+create policy "Administradores gerenciam seus próprios serviços" on services for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
--- Agendamentos (Agendamento público permitido, admins lêem/editam)
+-- AGENDAMENTOS (bookings)
 create policy "Público cria agendamentos" on bookings for insert with check (true);
-create policy "Público consulta agendamentos" on bookings for select using (true);
-create policy "Admins gerenciam agendamentos" on bookings for all to authenticated using (true);
+create policy "Público lê agendamentos" on bookings for select using (true);
+create policy "Administradores gerenciam seus próprios agendamentos" on bookings for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
--- Clientes (Público cria ao agendar, admins gerenciam)
-create policy "Público cria cadastro cliente" on clients for insert with check (true);
-create policy "Público consulta cadastro cliente" on clients for select using (true);
-create policy "Admins gerenciam clientes" on clients for all to authenticated using (true);
+-- CLIENTES (clients)
+create policy "Público cria e edita clientes" on clients for insert with check (true);
+create policy "Público lê clientes" on clients for select using (true);
+create policy "Público atualiza clientes" on clients for update using (true);
+create policy "Administradores gerenciam seus próprios clientes" on clients for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
--- Transações (Apenas admins gerenciam)
-create policy "Admins gerenciam transações" on transactions for all to authenticated using (true);`;
+-- TRANSAÇÕES (transactions)
+create policy "Administradores gerenciam suas próprias transações" on transactions for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);`;
 
 interface ConfigProps {
   settings: BarberSettings;
@@ -176,12 +197,6 @@ export default function AdminConfig({ settings, onUpdateSettings }: ConfigProps)
       );
     } finally {
       setIsSaving(false);
-    }
-  };
-
-  const handleResetDemo = () => {
-    if (confirm("Isto irá restaurar os dados iniciais do banco local para demonstração (Zera agendamentos, lançamentos financeiros e estatísticas para os presets originais). Continuar?")) {
-      dbStore.resetToDemo();
     }
   };
 
@@ -535,20 +550,7 @@ export default function AdminConfig({ settings, onUpdateSettings }: ConfigProps)
             </div>
           </div>
 
-          {/* PAINEL REGENERAR DEMO */}
-          <div className="bg-[#121212] border border-red-500/10 p-6 rounded-3xl shadow-xl space-y-4" id="demo-clean-panel">
-            <h4 className="text-sm font-display font-semibold text-white border-b border-white/5 pb-3 flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-red-500 animate-bounce" /> Ambiente de Teste / Reset
-            </h4>
-            <p className="text-xs text-zinc-400 leading-relaxed font-sans">Se você preencher muitos horários falsos ou bagunçar os caixas financeiros durante a avaliação, utilize o botão abaixo para limpar as tabelas e reinserir instâncias pré-montadas de agendamentos fictícios, clientes com histórico e tabelas de faturamento limpas.</p>
-            
-            <button
-              onClick={handleResetDemo}
-              className="w-full bg-red-500/10 hover:bg-red-500 border border-red-500/15 hover:border-red-600 text-red-500 hover:text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <RotateCcw className="h-4 w-4 animate-spin-slow" /> Restaurar Banco com Dados de Demonstração
-            </button>
-          </div>
+
         </div>
       </div>
     </div>

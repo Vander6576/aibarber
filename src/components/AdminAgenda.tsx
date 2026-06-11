@@ -559,7 +559,7 @@ export default function AdminAgenda({
           {filteredBookings.length === 0 ? (
             <div className="text-center py-12 space-y-2">
               <Calendar className="h-8 w-8 text-zinc-600 mx-auto" />
-              <p className="text-zinc-400 text-sm">Nenhum agendamento encontrado para as pesquisas e filtros selecionados.</p>
+              <p className="text-zinc-400 text-sm">Nenhum dado cadastrado.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

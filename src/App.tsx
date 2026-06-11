@@ -74,6 +74,7 @@ export default function App() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDbOffline, setIsDbOffline] = useState(isSupabaseOffline);
+  const [currentBarberUserId, setCurrentBarberUserId] = useState<string | null>(null);
 
   // --- CONNECTIVITY STATUS SYNCHRONIZATION ---
   useEffect(() => {
@@ -123,12 +124,70 @@ export default function App() {
   const loadDatabase = async () => {
     setIsLoading(true);
     try {
-      // 1. Sempre carrega as tabelas públicas (configurações e serviços)
-      const settsData = await dbStore.getSettings();
-      setSettings(settsData);
-      
-      const srvsData = await dbStore.getServices();
-      setServices(srvsData);
+      const path = window.location.pathname;
+      let slugOrId: string | null = null;
+      if (path.startsWith('/agendar/')) {
+        slugOrId = path.substring(9).trim();
+      } else if (path.startsWith('/consultar/')) {
+        slugOrId = path.substring(11).trim();
+      }
+
+      let activeSettings: BarberSettings | null = null;
+      let activeServices: Service[] = [];
+      let targetBarberUserId: string | null = null;
+
+      if (slugOrId && slugOrId !== "" && !path.includes('/admin')) {
+        // Busca a barbearia específica dona do link público
+        const barberData = await dbStore.getSettingsBySlugOrId(slugOrId);
+        if (barberData) {
+          activeSettings = barberData;
+          targetBarberUserId = barberData.user_id;
+          activeServices = await dbStore.getServices(targetBarberUserId);
+        } else {
+          // Barbearia não cadastrada/encontrada
+          setSettings(null);
+          setServices([]);
+          setCurrentBarberUserId(null);
+          setIsLoading(false);
+          return;
+        }
+      } else {
+        // Modo Administrativo ou Rota Geral: Carrega do admin logado
+        const settsData = await dbStore.getSettings();
+        if (settsData) {
+          activeSettings = settsData;
+          targetBarberUserId = settsData.userId || null;
+          activeServices = await dbStore.getServices();
+        } else if (!path.includes('/admin') && isSupabaseEnabled && supabase) {
+          // Busca a primeira barbearia cadastrada no banco para usar como default pública
+          try {
+            const { data } = await supabase.from('barber_settings').select('*').limit(1).maybeSingle();
+            if (data) {
+              const mapped = {
+                userId: data.user_id,
+                name: data.name || '',
+                address: data.address || '',
+                phone: data.phone || '',
+                logoUrl: data.logo_url || '',
+                startHour: data.start_hour || '08:00',
+                endHour: data.end_hour || '20:00',
+                workingDays: data.working_days || [1, 2, 3, 4, 5, 6],
+                barbers: data.barbers || [],
+                adminName: data.admin_name || 'Ricardo'
+              };
+              activeSettings = mapped;
+              targetBarberUserId = data.user_id;
+              activeServices = await dbStore.getServices(targetBarberUserId);
+            }
+          } catch (e) {
+            console.warn("Could not load public fallback profile:", e);
+          }
+        }
+      }
+
+      setSettings(activeSettings);
+      setServices(activeServices);
+      setCurrentBarberUserId(targetBarberUserId);
 
       // 2. Só carrega as coleções administrativas restritas se o admin estiver logado ou em modo Sandbox sem Supabase
       if (!isSupabaseEnabled || isAdminLoggedIn) {
@@ -240,14 +299,14 @@ export default function App() {
   };
 
   const handleAddBooking = async (booking: Omit<Booking, 'id' | 'createdAt'>) => {
-    const bk = await dbStore.addBooking(booking);
+    const bk = await dbStore.addBooking(booking, currentBarberUserId);
     // Recarrega todos de forma limpa para recalcular os faturamentos associados e CRM de clientes
     await loadDatabase();
     return bk;
   };
 
   const handleUpdateBooking = async (id: string, update: Partial<Booking>) => {
-    await dbStore.updateBooking(id, update);
+    await dbStore.updateBooking(id, update, currentBarberUserId);
     await loadDatabase();
   };
 

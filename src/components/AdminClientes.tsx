@@ -132,7 +132,7 @@ export default function AdminClientes({ clients, onAddClient, onUpdateClient }: 
         {filteredClients.length === 0 ? (
           <div className="p-10 flex flex-col items-center justify-center text-center text-zinc-500">
             <User className="h-10 w-10 text-zinc-700 mb-2" />
-            <p className="text-sm">Nenhum cliente cadastrado ou encontrado com este nome.</p>
+            <p className="text-sm">Nenhum dado cadastrado.</p>
           </div>
         ) : (
           <div>

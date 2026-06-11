@@ -265,7 +265,7 @@ export default function AdminFinanceiro({ transactions, onAddTransaction, onDele
           {currentFilteredList.length === 0 ? (
             <div className="p-10 flex flex-col items-center justify-center text-center text-zinc-500 my-auto">
               <FileText className="h-10 w-10 text-zinc-750 mb-2 animate-bounce" />
-              <p className="text-sm">Nenhuma transação gravada no período filtrado.</p>
+              <p className="text-sm">Nenhum dado cadastrado.</p>
             </div>
           ) : (
             <div className="divide-y divide-zinc-850 overflow-y-auto max-h-[380px]">

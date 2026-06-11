@@ -1,12 +1,20 @@
 import React, { useState } from 'react';
 import { Copy, Check, Share2, MessageSquare, Send, Mail, QrCode, X } from 'lucide-react';
 
-export default function AdminShare() {
+import { BarberSettings } from '../types';
+
+interface AdminShareProps {
+  settings?: BarberSettings | null;
+}
+
+export default function AdminShare({ settings }: AdminShareProps) {
   const [copied, setCopied] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
 
-  // Link definitivo do agendamento do cliente
-  const shareUrl = `${window.location.origin}/agendar`;
+  // Link definitivo do agendamento do cliente (SaaS Multiempresa)
+  const identifier = settings?.adminName || settings?.name || settings?.userId || "barbearia";
+  const slug = encodeURIComponent(identifier.trim().toLowerCase().replace(/\s+/g, '-'));
+  const shareUrl = `${window.location.origin}/agendar/${slug}`;
 
   const handleCopy = async () => {
     try {

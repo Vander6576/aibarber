@@ -165,7 +165,7 @@ export default function AdminDashboard({ bookings, clients, transactions, servic
       </header>
 
       {/* COMPARTILHAMENTO DE LINK PÚBLICO */}
-      <AdminShare />
+      <AdminShare settings={settings} />
 
       {/* MODO DEMO: GUIA DE EXPEDIENTE / ONBOARDING */}
       {showDemoGuide && (

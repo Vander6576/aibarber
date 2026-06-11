@@ -49,6 +49,7 @@ export interface Transaction {
 }
 
 export interface BarberSettings {
+  userId?: string;
   name: string;
   address: string;
   phone: string;
