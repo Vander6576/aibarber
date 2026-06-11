@@ -27,6 +27,30 @@ interface DashboardProps {
 }
 
 export default function AdminDashboard({ bookings, clients, transactions, services, settings, onNavigateTab }: DashboardProps) {
+  console.log("[DEBUG LOG] 4. Dashboard iniciado!");
+  console.log("[DEBUG LOG] Dados recebidos no Dashboard:", { 
+    bookings: bookings?.length, 
+    clients: clients?.length, 
+    transactions: transactions?.length, 
+    services: services?.length, 
+    settingsExist: !!settings,
+    settingsName: settings?.name 
+  });
+
+  if (!settings) {
+    console.error("[DEBUG LOG] 5. Componente que trava: AdminDashboard detectou 'settings' nulo!");
+    console.error("[DEBUG LOG] Primeiro erro que interrompe a renderização: Tentativa de leitura de 'settings.adminName' ou 'settings.name' a partir de nulo.");
+    return (
+      <div className="p-8 bg-red-950/20 border border-red-950 rounded-3xl text-center space-y-4 max-w-xl mx-auto my-12 font-sans">
+        <AlertCircle className="h-12 w-12 text-red-500 mx-auto animate-bounce" />
+        <h3 className="font-bold text-xl text-white">Oops! Configurações ausentes</h3>
+        <p className="text-sm text-zinc-400">
+          Não foi possível sincronizar suas configurações da barbearia. Por favor, tente acessar a guia de "Configurações" no menu lateral para inicializá-las ou tente recarregar a página.
+        </p>
+      </div>
+    );
+  }
+
   const [showDemoGuide, setShowDemoGuide] = useState(() => {
     try {
       return localStorage.getItem('barber_connect_demo_guide_dismissed') !== 'true';

@@ -155,11 +155,29 @@ export default function App() {
         }
       } else if (path.includes('/admin')) {
         // Modo Administrativo: Carrega as configurações do admin logado
+        console.log("[DEBUG LOG] Iniciando carregamento das configurações para o Modo Administrativo...");
         const settsData = await dbStore.getSettings();
         if (settsData) {
+          console.log("[DEBUG LOG] Configurações administrativas encontradas:", settsData);
           activeSettings = settsData;
           targetBarberUserId = settsData.userId || null;
           activeServices = await dbStore.getServices();
+        } else {
+          console.warn("[DEBUG LOG] getSettings() retornou nulo para Modo Administrativo. Iniciando fallback padrão.");
+          activeSettings = {
+            name: "Minha Barbearia",
+            slug: "barbearia",
+            address: "Adicione seu endereço",
+            phone: "(99) 99999-9999",
+            logoUrl: "",
+            startHour: "08:00",
+            endHour: "20:00",
+            workingDays: [1, 2, 3, 4, 5, 6],
+            barbers: ["Carlos", "Thiago", "Marcos"],
+            adminName: "Administrador"
+          };
+          targetBarberUserId = "local-demo-user-id";
+          activeServices = [];
         }
       } else {
         // Acesso público sem slug (ex: `/` ou `/agendar` sem identificador)
@@ -217,6 +235,8 @@ export default function App() {
   useEffect(() => {
     const isLocalAuth = localStorage.getItem('barber_admin_auth') === 'true';
     if (isLocalAuth) {
+      console.log("[DEBUG LOG] 2. Usuário autenticado encontrado: Modo Bypass Local/Demo");
+      console.log("[DEBUG LOG] 3. Sessão carregada: Local Storage LocalAuth Session");
       setIsAdminLoggedIn(true);
       return;
     }
@@ -225,10 +245,14 @@ export default function App() {
       // Obter sessão inicial
       supabase.auth.getSession().then(({ data: { session } }: any) => {
         if (localStorage.getItem('barber_admin_auth') === 'true') {
+          console.log("[DEBUG LOG] 2. Usuário autenticado encontrado: Modo Bypass Local/Demo");
+          console.log("[DEBUG LOG] 3. Sessão carregada: Local Storage LocalAuth Session");
           setIsAdminLoggedIn(true);
           return;
         }
         if (session && session.user) {
+          console.log("[DEBUG LOG] 2. Usuário autenticado encontrado (Supabase getSession):", session.user.email);
+          console.log("[DEBUG LOG] 3. Sessão carregada (Supabase getSession):", session);
           setAdminUser(session.user);
           setIsAdminLoggedIn(true);
         } else {
@@ -240,10 +264,14 @@ export default function App() {
       // Escutar mudanças de estado
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: any) => {
         if (localStorage.getItem('barber_admin_auth') === 'true') {
+          console.log("[DEBUG LOG] 2. Usuário autenticado encontrado: Modo Bypass Local/Demo");
+          console.log("[DEBUG LOG] 3. Sessão carregada: Local Storage LocalAuth Session");
           setIsAdminLoggedIn(true);
           return;
         }
         if (session && session.user) {
+          console.log("[DEBUG LOG] 2. Usuário autenticado encontrado (Supabase Auth Change):", session.user.email);
+          console.log("[DEBUG LOG] 3. Sessão carregada (Supabase Auth Change):", session);
           setAdminUser(session.user);
           setIsAdminLoggedIn(true);
         } else {
@@ -332,6 +360,8 @@ export default function App() {
       setAuthError("Forneça e-mail e senha de acesso!");
       return;
     }
+
+    console.log("[DEBUG LOG] 1. Login executado: Tentando login manual com e-mail:", emailStr);
 
     if (isSupabaseEnabled && supabase) {
       try {
@@ -471,6 +501,7 @@ export default function App() {
 
   // Selecionador de Login Automático do modo de demonstração local para agilidade de review
   const handleQuickDemoLogin = () => {
+    console.log("[DEBUG LOG] 1. Login executado via Clique Único de Demonstração");
     setAuthEmail("demo@barbearia.com");
     setAuthPassword("demo123");
     localStorage.setItem('barber_admin_auth', 'true');
@@ -1110,9 +1141,19 @@ export default function App() {
                   <AdminAgenda
                     bookings={bookings}
                     services={services}
-                    startHour={settings.startHour}
-                    endHour={settings.endHour}
-                    settings={settings}
+                    startHour={settings?.startHour || '08:00'}
+                    endHour={settings?.endHour || '20:00'}
+                    settings={settings || {
+                      name: "Minha Barbearia",
+                      address: "Cadastre seu endereço",
+                      phone: "(99) 99999-9999",
+                      logoUrl: "",
+                      startHour: "08:00",
+                      endHour: "20:00",
+                      workingDays: [1, 2, 3, 4, 5, 6],
+                      barbers: [],
+                      adminName: "Administrador"
+                    }}
                     onAddBooking={handleAddBooking}
                     onUpdateBooking={handleUpdateBooking}
                     onDeleteBooking={handleDeleteBooking}

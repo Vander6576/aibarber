@@ -1,6 +1,15 @@
 import { supabase, isSupabaseEnabled, setSupabaseOffline } from './supabase';
 import { Service, Booking, Client, Transaction, BarberSettings } from './types';
 
+// Helper function to check if Supabase queries should actively run (returns false if local demo/bypass is active)
+function isSupabaseActive(): boolean {
+  try {
+    return !!(isSupabaseEnabled && supabase && localStorage.getItem('barber_admin_auth') !== 'true');
+  } catch {
+    return !!(isSupabaseEnabled && supabase);
+  }
+}
+
 // Helper to handle Supabase errors gracefully without crashing the app
 function handleSupabaseError(error: any, operation: string) {
   console.warn(`[SUPABASE ERROR] during "${operation}":`, error);
@@ -16,7 +25,7 @@ function handleSupabaseError(error: any, operation: string) {
 
 // Helper to fetch the currently authenticated admin's user_id from Supabase auth session
 async function getAdminUserId(): Promise<string | null> {
-  if (isSupabaseEnabled && supabase) {
+  if (isSupabaseActive()) {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       return user?.id || null;
@@ -216,7 +225,7 @@ export const dbStore = {
   
   // Obtém configurações. Se targetUserId for omitido, obtém o do Admin autenticado.
   async getSettings(targetUserId?: string | null): Promise<BarberSettings | null> {
-    if (isSupabaseEnabled && supabase) {
+    if (isSupabaseActive()) {
       try {
         let userId = targetUserId;
         if (!userId) {
@@ -279,7 +288,7 @@ export const dbStore = {
 
   // Busca configurações de um barbeiro específico por slug (nome administrativo) ou user_id
   async getSettingsBySlugOrId(slugOrId: string): Promise<(BarberSettings & { user_id: string }) | null> {
-    if (isSupabaseEnabled && supabase) {
+    if (isSupabaseActive()) {
       try {
         const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(slugOrId);
         
@@ -305,13 +314,25 @@ export const dbStore = {
         console.error("Erro ao buscar barbearia pública:", error);
       }
     }
+    const local = localStorage.getItem('barber_settings');
+    if (local) {
+      const parsed = JSON.parse(local);
+      const cleanSlug = (parsed.slug || '').trim().toLowerCase();
+      const cleanInput = slugOrId.trim().toLowerCase();
+      if (cleanSlug === cleanInput || cleanInput === 'barbearia' || cleanInput === 'demo') {
+        return {
+          ...parsed,
+          user_id: 'local-demo-user-id'
+        };
+      }
+    }
     return null;
   },
 
   async updateSettings(settings: BarberSettings): Promise<void> {
     localStorage.setItem('barber_settings', JSON.stringify(settings));
 
-    if (isSupabaseEnabled && supabase) {
+    if (isSupabaseActive()) {
       try {
         const userId = await getAdminUserId();
         if (!userId) {
@@ -334,7 +355,7 @@ export const dbStore = {
   // --- CATÁLOGO DE SERVIÇOS (Isolado por Usuário) ---
   
   async getServices(targetUserId?: string | null): Promise<Service[]> {
-    if (isSupabaseEnabled && supabase) {
+    if (isSupabaseActive()) {
       try {
         let userId = targetUserId;
         if (!userId) {
@@ -362,7 +383,7 @@ export const dbStore = {
     const newId = "s-" + Math.random().toString(36).substr(2, 9);
     const newService: Service = { ...service, id: newId };
     
-    if (isSupabaseEnabled && supabase) {
+    if (isSupabaseActive()) {
       try {
         let userId = targetUserId;
         if (!userId) {
@@ -398,7 +419,7 @@ export const dbStore = {
   },
 
   async updateService(id: string, service: Partial<Service>): Promise<void> {
-    if (isSupabaseEnabled && supabase) {
+    if (isSupabaseActive()) {
       try {
         const userId = await getAdminUserId();
         if (!userId) throw new Error("Não autenticado");
@@ -422,7 +443,7 @@ export const dbStore = {
   },
 
   async deleteService(id: string): Promise<void> {
-    if (isSupabaseEnabled && supabase) {
+    if (isSupabaseActive()) {
       try {
         const userId = await getAdminUserId();
         if (!userId) throw new Error("Não autenticado");
@@ -448,7 +469,7 @@ export const dbStore = {
   // --- AGENDAMENTOS (Isolados por Usuário no SaaS) ---
   
   async getBookings(targetUserId?: string | null): Promise<Booking[]> {
-    if (isSupabaseEnabled && supabase) {
+    if (isSupabaseActive()) {
       try {
         let userId = targetUserId;
         if (!userId) {
@@ -472,7 +493,7 @@ export const dbStore = {
   },
 
   async getBookingsByDate(date: string, targetUserId?: string | null): Promise<Booking[]> {
-    if (isSupabaseEnabled && supabase) {
+    if (isSupabaseActive()) {
       try {
         let userId = targetUserId;
         if (!userId) {
@@ -497,7 +518,7 @@ export const dbStore = {
 
   async getBookingsByWhatsApp(whatsapp: string, targetUserId?: string | null): Promise<Booking[]> {
     const cleanWhatsApp = whatsapp.trim().replace(/\D/g, '');
-    if (isSupabaseEnabled && supabase) {
+    if (isSupabaseActive()) {
       try {
         let userId = targetUserId;
         if (!userId) {
@@ -537,7 +558,7 @@ export const dbStore = {
     // Registra ou atualiza automaticamente as estatísticas do cliente no SaaS sob o mesmo user_id
     await this.registerOrUpdateClient(booking.clientName, booking.clientWhatsApp, booking.servicePrice, booking.date, userId);
 
-    if (isSupabaseEnabled && supabase) {
+    if (isSupabaseActive()) {
       try {
         const payload = mapBookingToDb(newBooking, userId);
         const { error } = await supabase
@@ -583,7 +604,7 @@ export const dbStore = {
   async updateBooking(id: string, update: Partial<Booking>, targetUserId?: string | null): Promise<void> {
     const authUserId = await getAdminUserId();
 
-    if (isSupabaseEnabled && supabase) {
+    if (isSupabaseActive()) {
       try {
         const dbUpdate: any = {};
         if (update.status) dbUpdate.status = update.status;
@@ -633,7 +654,7 @@ export const dbStore = {
   },
 
   async deleteBooking(id: string): Promise<void> {
-    if (isSupabaseEnabled && supabase) {
+    if (isSupabaseActive()) {
       try {
         const userId = await getAdminUserId();
         if (!userId) throw new Error("Não autenticado");
@@ -659,7 +680,7 @@ export const dbStore = {
   // --- CADASTRO DE CLIENTES CRM (Isolados por Usuário no SaaS) ---
   
   async getClients(targetUserId?: string | null): Promise<Client[]> {
-    if (isSupabaseEnabled && supabase) {
+    if (isSupabaseActive()) {
       try {
         let userId = targetUserId;
         if (!userId) {
@@ -696,7 +717,7 @@ export const dbStore = {
     }
     if (!userId) throw new Error("Ação não permitida: Identificação de barbearia ausente.");
 
-    if (isSupabaseEnabled && supabase) {
+    if (isSupabaseActive()) {
       try {
         const payload = mapClientToDb(newClient, userId);
         const { error } = await supabase
@@ -717,7 +738,7 @@ export const dbStore = {
   },
 
   async updateClient(id: string, update: Partial<Client>): Promise<void> {
-    if (isSupabaseEnabled && supabase) {
+    if (isSupabaseActive()) {
       try {
         const userId = await getAdminUserId();
         if (!userId) throw new Error("Não autenticado");
@@ -751,7 +772,7 @@ export const dbStore = {
 
   async getClientByWhatsApp(whatsapp: string, targetUserId?: string | null): Promise<Client | null> {
     const cleanWhatsApp = whatsapp.trim().replace(/\D/g, '');
-    if (isSupabaseEnabled && supabase) {
+    if (isSupabaseActive()) {
       try {
         let userId = targetUserId;
         if (!userId) {
@@ -799,7 +820,7 @@ export const dbStore = {
   // --- CONTROLE FINANCEIRO (Isolado por Usuário no SaaS) ---
   
   async getTransactions(targetUserId?: string | null): Promise<Transaction[]> {
-    if (isSupabaseEnabled && supabase) {
+    if (isSupabaseActive()) {
       try {
         let userId = targetUserId;
         if (!userId) {
@@ -836,7 +857,7 @@ export const dbStore = {
     }
     if (!userId) throw new Error("Ação não permitida: Identificação de barbearia ausente.");
 
-    if (isSupabaseEnabled && supabase) {
+    if (isSupabaseActive()) {
       try {
         const payload = mapTransactionToDb(newTx, userId);
         const { error } = await supabase
@@ -857,7 +878,7 @@ export const dbStore = {
   },
 
   async deleteTransaction(id: string): Promise<void> {
-    if (isSupabaseEnabled && supabase) {
+    if (isSupabaseActive()) {
       try {
         const userId = await getAdminUserId();
         if (!userId) throw new Error("Não autenticado");
