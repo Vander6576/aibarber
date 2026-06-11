@@ -36,6 +36,52 @@ async function getAdminUserId(): Promise<string | null> {
   return null;
 }
 
+// Helper robusto para realizar INSERT ou UPDATE no Supabase de forma resiliente
+// Caso o banco do usuário não possua alguma coluna opcional (ex: descrita em migrações SQL mas não rodada),
+// o helper captura a exceção de coluna ausente do PostgREST, remove-a do payload e executa novamente a query.
+async function robustSupabaseQuery(
+  table: string,
+  operation: 'insert' | 'update',
+  payload: any,
+  queryBuilderFn: (query: any) => any
+): Promise<any> {
+  try {
+    let query = supabase.from(table);
+    if (operation === 'insert') {
+      query = query.insert(payload.length ? payload : [payload]);
+    } else {
+      query = query.update(payload);
+    }
+    // Aplica filtros adicionais (como .eq() ou colunas de retorno)
+    query = queryBuilderFn(query);
+    
+    const { data, error } = await query;
+    if (error) throw error;
+    return data;
+  } catch (error: any) {
+    const errorMsg = (error?.message || String(error));
+    if (errorMsg.includes("Could not find the") && (errorMsg.includes("column of") || errorMsg.includes("in the schema cache"))) {
+      const match = errorMsg.match(/Could not find the '([^']+)' column/);
+      if (match && match[1]) {
+        const missingColumn = match[1];
+        console.warn(`[AUTO-REPAIR] Coluna '${missingColumn}' ausente na tabela '${table}' do banco de produção. Removendo do payload e re-tentando...`);
+        
+        if (Array.isArray(payload)) {
+          const cleanPayload = payload.map(item => {
+            const { [missingColumn]: _, ...cleanItem } = item;
+            return cleanItem;
+          });
+          return robustSupabaseQuery(table, operation, cleanPayload, queryBuilderFn);
+        } else {
+          const { [missingColumn]: _, ...cleanPayload } = payload;
+          return robustSupabaseQuery(table, operation, cleanPayload, queryBuilderFn);
+        }
+      }
+    }
+    throw error;
+  }
+}
+
 // ==========================================
 // CENTRALIZAÇÃO DOS MAPEAMENTOS (CamelCase <-> Snake_case)
 // ==========================================
@@ -351,21 +397,12 @@ export const dbStore = {
         if (findError) throw findError;
 
         if (existing) {
-          // Se o registro existe, atualiza os campos de dados sem alterar "id" ou "user_id" para evitar conflito de chave
+          // Se o registro existe, atualiza os campos de dados de forma robusta e dinâmica
           const { id, user_id, ...updatePayload } = dbPayload;
-          const { error: updateError } = await supabase
-            .from('barber_settings')
-            .update(updatePayload)
-            .eq('user_id', userId);
-
-          if (updateError) throw updateError;
+          await robustSupabaseQuery('barber_settings', 'update', updatePayload, q => q.eq('user_id', userId));
         } else {
-          // Se não existe, podemos inserir com segurança
-          const { error: insertError } = await supabase
-            .from('barber_settings')
-            .insert([dbPayload]);
-
-          if (insertError) throw insertError;
+          // Se não existe, podemos inserir com segurança e dinâmica de autorepair
+          await robustSupabaseQuery('barber_settings', 'insert', dbPayload, q => q);
         }
       } catch (error) {
         handleSupabaseError(error, 'updateSettings');
@@ -661,18 +698,10 @@ export const dbStore = {
     if (isSupabaseActive()) {
       try {
         const payload = mapBookingToDb(newBooking, userId);
-        console.log(`[DEBUG LOG / AGENDAMENTO] payload enviado ao Supabase:`, payload);
+        console.log(`[DEBUG LOG / AGENDAMENTO] payload enviado ao Supabase (com autorepair ativo):`, payload);
         
-        const { error } = await supabase
-          .from('bookings')
-          .insert([payload]);
-          
-        console.log(`[DEBUG LOG / AGENDAMENTO] Resposta completa do Supabase de agendamento (erro se houver):`, error);
-        
-        if (error) {
-          console.error(`[DEBUG LOG / AGENDAMENTO] Erro real retornado pelo Supabase:`, error);
-          throw error;
-        }
+        await robustSupabaseQuery('bookings', 'insert', payload, q => q);
+        console.log(`[DEBUG LOG / AGENDAMENTO] Reserva gravada com sucesso no Supabase!`);
 
         // Se estiver concluído, insere transação de receita única
         if (newBooking.status === 'concluido' && newBooking.paymentMethod) {
@@ -784,12 +813,7 @@ export const dbStore = {
         if (update.date !== undefined) dbUpdate.date = update.date;
         if (update.time !== undefined) dbUpdate.time = update.time;
 
-        const { error } = await supabase
-          .from('bookings')
-          .update(dbUpdate)
-          .eq('id', id)
-          .eq('user_id', userId);
-        if (error) throw error;
+        await robustSupabaseQuery('bookings', 'update', dbUpdate, q => q.eq('id', id).eq('user_id', userId));
 
         // Gestão financeira única e estornos
         if (current.status !== 'concluido' && merged.status === 'concluido') {
