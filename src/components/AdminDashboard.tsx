@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Booking, Client, Transaction, Service, BarberSettings } from '../types';
 import AdminShare from './AdminShare';
+import { getTodayBrasiliaStr, getTomorrowBrasiliaStr, getNowBrasiliaTime } from '../utils/timezone';
 import { 
   TrendingUp, 
   Users, 
@@ -75,12 +76,10 @@ export default function AdminDashboard({ bookings, clients, transactions, servic
 
   const [timelineDate, setTimelineDate] = useState<'hoje' | 'amanha'>('hoje');
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowStr = tomorrow.toISOString().split('T')[0];
+  const todayStr = getTodayBrasiliaStr();
+  const tomorrowStr = getTomorrowBrasiliaStr();
 
-  const currentMonthYear = new Date().toISOString().substring(0, 7); // YYYY-MM
+  const currentMonthYear = todayStr.substring(0, 7); // YYYY-MM
 
   useEffect(() => {
     // 1. Faturamento do dia
@@ -115,7 +114,7 @@ export default function AdminDashboard({ bookings, clients, transactions, servic
     const todayAppointments = bookings.filter(b => b.date === todayStr && b.status === 'agendado');
     if (todayAppointments.length === 0) return null;
     
-    const nowHourStr = new Date().toTimeString().substring(0, 5); // "HH:MM"
+    const nowHourStr = getNowBrasiliaTime(); // "HH:MM" in Brasilia
     const upcoming = todayAppointments
       .filter(b => b.time >= nowHourStr)
       .sort((a, b) => a.time.localeCompare(b.time));
@@ -183,7 +182,7 @@ export default function AdminDashboard({ bookings, clients, transactions, servic
             Novo Agendamento
           </button>
           <div className="text-xs font-mono text-zinc-400 bg-black border border-white/5 px-3 py-2 rounded-xl">
-            {new Date().toLocaleDateString('pt-BR', { dateStyle: 'medium' })}
+            {new Date(getTodayBrasiliaStr() + 'T12:00:00').toLocaleDateString('pt-BR', { dateStyle: 'medium' })}
           </div>
         </div>
       </header>

@@ -324,9 +324,37 @@ export const dbStore = {
           ...parsed,
           user_id: 'local-demo-user-id'
         };
+      } else {
+        // Fallback dinâmico em Sandbox mode para qualquer slug digitado (ex: vander)
+        const capitalized = slugOrId.charAt(0).toUpperCase() + slugOrId.slice(1);
+        return {
+          ...parsed,
+          name: parsed.name === "Minha Barbearia" || parsed.name === "" ? `Barbearia ${capitalized}` : parsed.name,
+          slug: slugOrId,
+          user_id: 'local-demo-user-id'
+        };
       }
+    } else {
+      // Se não houver configurações no localStorage, inicializa uma e retorna
+      const capitalized = slugOrId.charAt(0).toUpperCase() + slugOrId.slice(1);
+      const initSettings = {
+        name: `Barbearia ${capitalized}`,
+        slug: slugOrId,
+        address: "Av. Paulista, 1000 - Bela Vista, São Paulo",
+        phone: "(11) 98888-7777",
+        logoUrl: "",
+        startHour: "08:00",
+        endHour: "20:00",
+        workingDays: [1, 2, 3, 4, 5, 6],
+        barbers: ["Carlos", "Thiago", "Marcos"],
+        adminName: capitalized
+      };
+      localStorage.setItem('barber_settings', JSON.stringify(initSettings));
+      return {
+        ...initSettings,
+        user_id: 'local-demo-user-id'
+      };
     }
-    return null;
   },
 
   async updateSettings(settings: BarberSettings): Promise<void> {
@@ -542,21 +570,65 @@ export const dbStore = {
   },
 
   async addBooking(booking: Omit<Booking, 'id' | 'createdAt'>, targetUserId?: string | null): Promise<Booking> {
-    const newId = "b-" + Math.random().toString(36).substr(2, 9);
-    const newBooking: Booking = {
-      ...booking,
-      id: newId,
-      createdAt: new Date().toISOString()
-    };
-
     let userId = targetUserId;
     if (!userId) {
       userId = await getAdminUserId();
     }
     if (!userId) throw new Error("Ação não permitida: Identificação da barbearia ausente.");
 
-    // Registra ou atualiza automaticamente as estatísticas do cliente no SaaS sob o mesmo user_id
-    await this.registerOrUpdateClient(booking.clientName, booking.clientWhatsApp, booking.servicePrice, booking.date, userId);
+    // --- REGRAS DE NEGÓCIO E VALIDAÇÕES MULTIUSUÁRIO ---
+    const settings = await this.getSettings(userId);
+    if (settings) {
+      // 1. Validar dias de funcionamento
+      const parts = booking.date.split('-').map(Number);
+      const d = new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0);
+      const dayOfWeek = d.getDay();
+      if (!settings.workingDays.includes(dayOfWeek)) {
+        throw new Error("Agendamento não permitido: A barbearia está fechada neste dia da semana.");
+      }
+
+      // 2. Validar horário de funcionamento
+      if (booking.time < settings.startHour || booking.time > settings.endHour) {
+        throw new Error(`Agendamento não permitido: Horário fora do expediente da barbearia (${settings.startHour} às ${settings.endHour}).`);
+      }
+
+      // 3. Impedir conflito: dois clientes no mesmo horário para o mesmo barbeiro
+      const list = await this.getBookings(userId);
+      const activeBookings = list.filter(b => b.status !== 'cancelado');
+      
+      const targetBarber = booking.barberName || "";
+      if (targetBarber && targetBarber !== "Qualquer Barbeiro" && targetBarber !== "") {
+        const isDoubleBooked = activeBookings.some(
+          b => b.date === booking.date && b.time === booking.time && b.barberName === targetBarber
+        );
+        if (isDoubleBooked) {
+          throw new Error(`Conflito: O barbeiro ${targetBarber} já está reservado no dia ${booking.date.split('-').reverse().join('/')} às ${booking.time}. Escolha outro profissional ou horário!`);
+        }
+      } else {
+        // "Qualquer Barbeiro" -> Auto-atribui o primeiro barbeiro livre na data/horário
+        const busyBarbers = activeBookings
+          .filter(b => b.date === booking.date && b.time === booking.time)
+          .map(b => b.barberName)
+          .filter(Boolean);
+          
+        const shopBarbers = settings.barbers && settings.barbers.length > 0 ? settings.barbers : ["Carlos", "Thiago", "Marcos"];
+        const availableBarbers = shopBarbers.filter(b => !busyBarbers.includes(b));
+        
+        if (availableBarbers.length === 0) {
+          throw new Error(`Conflito: Não há profissionais livres para o dia ${booking.date.split('-').reverse().join('/')} às ${booking.time}. Escolha outro horário!`);
+        }
+        
+        // Auto-atribui o primeiro barbeiro livre
+        booking.barberName = availableBarbers[0];
+      }
+    }
+
+    const newId = "b-" + Math.random().toString(36).substr(2, 9);
+    const newBooking: Booking = {
+      ...booking,
+      id: newId,
+      createdAt: new Date().toISOString()
+    };
 
     if (isSupabaseActive()) {
       try {
@@ -566,7 +638,7 @@ export const dbStore = {
           .insert([payload]);
         if (error) throw error;
 
-        // Se o agendamento já for inserido como concluído e tiver método de pagamento, lança no financeiro automático
+        // Se estiver concluído, insere transação de receita única
         if (newBooking.status === 'concluido' && newBooking.paymentMethod) {
           await this.addTransaction({
             type: 'receita',
@@ -577,13 +649,17 @@ export const dbStore = {
             bookingId: newId
           }, userId);
         }
+
+        // Sincroniza estatísticas reais no CRM
+        await this.syncClientStats(booking.clientWhatsApp, userId);
+
         return newBooking;
       } catch (error) {
         handleSupabaseError(error, 'addBooking');
         throw error;
       }
     } else {
-      const list = await this.getBookings();
+      const list = await this.getBookings(userId);
       list.push(newBooking);
       localStorage.setItem('barber_bookings', JSON.stringify(list));
 
@@ -597,12 +673,70 @@ export const dbStore = {
           bookingId: newId
         }, userId);
       }
+
+      await this.syncClientStats(booking.clientWhatsApp, userId);
       return newBooking;
     }
   },
 
   async updateBooking(id: string, update: Partial<Booking>, targetUserId?: string | null): Promise<void> {
     const authUserId = await getAdminUserId();
+    let userId = authUserId;
+    if (!userId) {
+      userId = targetUserId || null;
+    }
+    if (!userId) throw new Error("Ação não permitida: Identificação da barbearia ausente.");
+
+    const bookings = await this.getBookings(userId);
+    const current = bookings.find(b => b.id === id);
+    if (!current) throw new Error("Agendamento não encontrado.");
+
+    const merged = { ...current, ...update };
+
+    // Validamos se a edição altera campos críticos de horário, profissional ou se é ativo
+    if (merged.status !== 'cancelado' && (update.date || update.time || update.barberName)) {
+      const settings = await this.getSettings(userId);
+      if (settings) {
+        // 1. Validar dias de funcionamento
+        const parts = merged.date.split('-').map(Number);
+        const d = new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0);
+        const dayOfWeek = d.getDay();
+        if (!settings.workingDays.includes(dayOfWeek)) {
+          throw new Error("Edição negada: A barbearia está fechada neste dia da semana.");
+        }
+
+        // 2. Validar expediente
+        if (merged.time < settings.startHour || merged.time > settings.endHour) {
+          throw new Error(`Edição negada: Horário fora do expediente (${settings.startHour} às ${settings.endHour}).`);
+        }
+
+        // 3. Garantir que o barbeiro destino não seja duplicado (excluindo este id atual)
+        const activeBookings = bookings.filter(b => b.status !== 'cancelado' && b.id !== id);
+        const targetBarber = merged.barberName || "";
+        
+        if (targetBarber && targetBarber !== "Qualquer Barbeiro" && targetBarber !== "") {
+          const isDoubleBooked = activeBookings.some(
+            b => b.date === merged.date && b.time === merged.time && b.barberName === targetBarber
+          );
+          if (isDoubleBooked) {
+            throw new Error(`Conflito: O barbeiro ${targetBarber} já está agendado neste horário.`);
+          }
+        } else {
+          const busyBarbers = activeBookings
+            .filter(b => b.date === merged.date && b.time === merged.time)
+            .map(b => b.barberName)
+            .filter(Boolean);
+            
+          const shopBarbers = settings.barbers && settings.barbers.length > 0 ? settings.barbers : ["Carlos", "Thiago", "Marcos"];
+          const availableBarbers = shopBarbers.filter(b => !busyBarbers.includes(b));
+          
+          if (availableBarbers.length === 0) {
+            throw new Error("Conflito: Nenhum profissional está livre no dia/horário escolhidos.");
+          }
+          update.barberName = availableBarbers[0];
+        }
+      }
+    }
 
     if (isSupabaseActive()) {
       try {
@@ -611,53 +745,89 @@ export const dbStore = {
         if (update.paymentMethod) dbUpdate.payment_method = update.paymentMethod;
         if (update.notes !== undefined) dbUpdate.notes = update.notes;
         if (update.barberName !== undefined) dbUpdate.barber_name = update.barberName;
+        if (update.date !== undefined) dbUpdate.date = update.date;
+        if (update.time !== undefined) dbUpdate.time = update.time;
 
-        let query = supabase.from('bookings').update(dbUpdate).eq('id', id);
-        
-        // Se houver admin autenticado, garante o isolamento na alteração. Se for público, usa targetUserId para refinar.
-        if (authUserId) {
-          query = query.eq('user_id', authUserId);
-        } else if (targetUserId) {
-          query = query.eq('user_id', targetUserId);
-        }
-
-        const { error } = await query;
+        const { error } = await supabase
+          .from('bookings')
+          .update(dbUpdate)
+          .eq('id', id)
+          .eq('user_id', userId);
         if (error) throw error;
 
-        // Se o status estiver mudando de agendado para concluído administrativamente:
-        if (update.status === 'concluido' && authUserId) {
-          const list = await this.getBookings(authUserId);
-          const current = list.find(b => b.id === id);
-          if (current) {
-            const paymentMethod = update.paymentMethod || 'pix';
-            await this.addTransaction({
-              type: 'receita',
-              amount: current.servicePrice,
-              date: current.date,
-              description: `Atendimento - ${current.clientName} (${current.serviceName})`,
-              paymentMethod,
-              bookingId: id
-            }, authUserId);
+        // Gestão financeira única e estornos
+        if (current.status !== 'concluido' && merged.status === 'concluido') {
+          const pm = update.paymentMethod || current.paymentMethod || 'pix';
+          await this.addTransaction({
+            type: 'receita',
+            amount: merged.servicePrice,
+            date: merged.date,
+            description: `Atendimento - ${merged.clientName} (${merged.serviceName})`,
+            paymentMethod: pm,
+            bookingId: id
+          }, userId);
+        } else if (current.status === 'concluido' && merged.status !== 'concluido') {
+          // Deleta transação ao reverter ou cancelar
+          const { error: delTxErr } = await supabase
+            .from('transactions')
+            .delete()
+            .eq('booking_id', id)
+            .eq('user_id', userId);
+          if (delTxErr) console.warn("Erro ao reverter transação financeira:", delTxErr);
+        }
 
-            await this.registerOrUpdateClient(current.clientName, current.clientWhatsApp, current.servicePrice, current.date, authUserId);
-          }
+        // Sincroniza estatísticas CRM do Cliente
+        await this.syncClientStats(current.clientWhatsApp, userId);
+        if (update.clientWhatsApp && update.clientWhatsApp !== current.clientWhatsApp) {
+          await this.syncClientStats(update.clientWhatsApp, userId);
         }
       } catch (error) {
         handleSupabaseError(error, 'updateBooking');
         throw error;
       }
     } else {
-      const list = await this.getBookings(targetUserId);
-      const updated = list.map(item => item.id === id ? { ...item, ...update } : item);
+      const updated = bookings.map(item => item.id === id ? { ...item, ...update } : item);
       localStorage.setItem('barber_bookings', JSON.stringify(updated));
+
+      if (current.status !== 'concluido' && merged.status === 'concluido') {
+        const pm = update.paymentMethod || current.paymentMethod || 'pix';
+        await this.addTransaction({
+          type: 'receita',
+          amount: merged.servicePrice,
+          date: merged.date,
+          description: `Atendimento - ${merged.clientName} (${merged.serviceName})`,
+          paymentMethod: pm,
+          bookingId: id
+        }, userId);
+      } else if (current.status === 'concluido' && merged.status !== 'concluido') {
+        const txs = await this.getTransactions(userId);
+        const filteredTxs = txs.filter(t => t.bookingId !== id);
+        localStorage.setItem('barber_transactions', JSON.stringify(filteredTxs));
+      }
+
+      await this.syncClientStats(current.clientWhatsApp, userId);
+      if (update.clientWhatsApp && update.clientWhatsApp !== current.clientWhatsApp) {
+        await this.syncClientStats(update.clientWhatsApp, userId);
+      }
     }
   },
 
   async deleteBooking(id: string): Promise<void> {
+    const userId = await getAdminUserId();
+    if (!userId) throw new Error("Ação não permitida: Não autenticado.");
+
+    const bookings = await this.getBookings(userId);
+    const current = bookings.find(b => b.id === id);
+
     if (isSupabaseActive()) {
       try {
-        const userId = await getAdminUserId();
-        if (!userId) throw new Error("Não autenticado");
+        // Estorna transações anexadas
+        const { error: txDelErr } = await supabase
+          .from('transactions')
+          .delete()
+          .eq('booking_id', id)
+          .eq('user_id', userId);
+        if (txDelErr) console.warn("Aviso ao remover transações de booking excluído:", txDelErr);
 
         const { error } = await supabase
           .from('bookings')
@@ -665,15 +835,25 @@ export const dbStore = {
           .eq('id', id)
           .eq('user_id', userId);
         if (error) throw error;
-        return;
+
+        if (current) {
+          await this.syncClientStats(current.clientWhatsApp, userId);
+        }
       } catch (error) {
         handleSupabaseError(error, 'deleteBooking');
         throw error;
       }
     } else {
-      const list = await this.getBookings();
-      const updated = list.filter(item => item.id !== id);
+      const txs = await this.getTransactions(userId);
+      const filteredTxs = txs.filter(t => t.bookingId !== id);
+      localStorage.setItem('barber_transactions', JSON.stringify(filteredTxs));
+
+      const updated = bookings.filter(item => item.id !== id);
       localStorage.setItem('barber_bookings', JSON.stringify(updated));
+
+      if (current) {
+        await this.syncClientStats(current.clientWhatsApp, userId);
+      }
     }
   },
 
@@ -797,24 +977,38 @@ export const dbStore = {
     return clients.find(c => c.whatsapp.trim().replace(/\D/g, '') === cleanWhatsApp || c.whatsapp === whatsapp) || null;
   },
 
-  async registerOrUpdateClient(name: string, whatsapp: string, orderPrice: number, orderDate: string, targetUserId: string): Promise<void> {
-    const found = await this.getClientByWhatsApp(whatsapp, targetUserId);
+  async syncClientStats(whatsapp: string, targetUserId: string): Promise<void> {
+    try {
+      const bookings = await this.getBookingsByWhatsApp(whatsapp, targetUserId);
+      const completed = bookings.filter(b => b.status === 'concluido');
+      const totalBookings = completed.length;
+      const totalSpent = completed.reduce((sum, b) => sum + b.servicePrice, 0);
 
-    if (found) {
-      await this.updateClient(found.id, {
-        totalBookings: found.totalBookings + 1,
-        totalSpent: found.totalSpent + orderPrice
-      });
-    } else {
-      await this.addClient({
-        name,
-        whatsapp,
-        birthDate: "",
-        notes: "Cliente registrado automaticamente ao agendar.",
-        totalBookings: 1,
-        totalSpent: orderPrice
-      }, targetUserId);
+      const found = await this.getClientByWhatsApp(whatsapp, targetUserId);
+      if (found) {
+        await this.updateClient(found.id, {
+          totalBookings,
+          totalSpent
+        });
+      } else if (bookings.length > 0) {
+        // Encontra o nome usado neste agendamento para cadastrar
+        const lastBooking = bookings[0];
+        await this.addClient({
+          name: lastBooking.clientName,
+          whatsapp,
+          birthDate: "",
+          notes: "Cliente registrado automaticamente pelo sistema de agendamento.",
+          totalBookings,
+          totalSpent
+        }, targetUserId);
+      }
+    } catch (err) {
+      console.warn("Erro ao sincronizar estatísticas CRM do cliente:", err);
     }
+  },
+
+  async registerOrUpdateClient(name: string, whatsapp: string, orderPrice: number, orderDate: string, targetUserId: string): Promise<void> {
+    await this.syncClientStats(whatsapp, targetUserId);
   },
 
   // --- CONTROLE FINANCEIRO (Isolado por Usuário no SaaS) ---

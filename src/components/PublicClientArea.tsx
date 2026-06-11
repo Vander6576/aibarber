@@ -158,16 +158,19 @@ export default function PublicClientArea({ services, bookings, settings, onAddBo
       }
     }
 
-    // Busca quais horários já estão ocupados nesta data (e não cancelados!)
-    const occupiedTimes = activeDateBookings
-      .filter(b => b.date === date && b.status !== 'cancelado')
-      .map(b => b.time);
+    // Calcula a capacidade de barbeiros ativos na barbearia
+    const totalBarbersCount = settings.barbers && settings.barbers.length > 0 ? settings.barbers.length : 1;
 
     const todayBrStr = getTodayBrasiliaStr();
     const nowBrTime = getNowBrasiliaTime();
 
     return slots.map(time => {
-      let isAvailable = !occupiedTimes.includes(time);
+      // O horário é considerado livre se a quantidade de agendamentos ativos para este horário for menor que o número de profissionais
+      const activeBookingsAtSlot = activeDateBookings.filter(
+        b => b.date === date && b.time === time && b.status !== 'cancelado'
+      );
+      
+      let isAvailable = activeBookingsAtSlot.length < totalBarbersCount;
       
       // Se for hoje no fuso do Brasil, o horário do slot deve ser maior do que a hora atual de Brasília
       if (isAvailable && date === todayBrStr) {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Booking, Service, BookingStatus, BarberSettings } from '../types';
 import { Plus, Clock, User, Phone, Check, X, ShieldAlert, FileText, Send, Calendar, Trash2, ArrowLeftRight, Search, SlidersHorizontal } from 'lucide-react';
+import { getTodayBrasiliaStr, getTomorrowBrasiliaStr, getNowBrasiliaTime } from '../utils/timezone';
 
 interface AgendaProps {
   bookings: Booking[];
@@ -23,7 +24,7 @@ export default function AdminAgenda({
   onUpdateBooking,
   onDeleteBooking
 }: AgendaProps) {
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(getTodayBrasiliaStr());
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState("");
@@ -171,13 +172,9 @@ export default function AdminAgenda({
 
   // ALINHAMENTO DO PERÍODO DO FILTRO PARA DETERMINAR QUAL DATA O GRID EXIBE
   const activeGridDate = filterPeriod === 'hoje' 
-    ? new Date().toISOString().split('T')[0]
+    ? getTodayBrasiliaStr()
     : filterPeriod === 'amanha'
-      ? (() => {
-          const tomorrow = new Date();
-          tomorrow.setDate(tomorrow.getDate() + 1);
-          return tomorrow.toISOString().split('T')[0];
-        })()
+      ? getTomorrowBrasiliaStr()
       : selectedDate;
 
   // FILTRA OS AGENDAMENTOS DINAMICAMENTE
@@ -186,28 +183,32 @@ export default function AdminAgenda({
     if (filterPeriod === 'dia') {
       if (b.date !== selectedDate) return false;
     } else if (filterPeriod === 'hoje') {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getTodayBrasiliaStr();
       if (b.date !== today) return false;
     } else if (filterPeriod === 'amanha') {
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const tomorrowStr = tomorrow.toISOString().split('T')[0];
+      const tomorrowStr = getTomorrowBrasiliaStr();
       if (b.date !== tomorrowStr) return false;
     } else if (filterPeriod === 'semana') {
-      const bDate = new Date(b.date + 'T00:00:00');
-      const now = new Date();
-      const currentDay = now.getDay();
-      const startOfWeek = new Date(now);
-      startOfWeek.setDate(now.getDate() - currentDay);
-      startOfWeek.setHours(0,0,0,0);
+      const bDate = new Date(b.date + 'T12:00:00');
+      const todayStr = getTodayBrasiliaStr();
+      const parts = todayStr.split('-').map(Number);
+      const nowBr = new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0);
+      
+      const currentDay = nowBr.getDay();
+      const startOfWeek = new Date(nowBr);
+      startOfWeek.setDate(nowBr.getDate() - currentDay);
+      startOfWeek.setHours(0, 0, 0, 0);
+      
       const endOfWeek = new Date(startOfWeek);
       endOfWeek.setDate(startOfWeek.getDate() + 6);
-      endOfWeek.setHours(23,59,59,999);
+      endOfWeek.setHours(23, 59, 59, 999);
+      
       if (bDate < startOfWeek || bDate > endOfWeek) return false;
     } else if (filterPeriod === 'mes') {
       const [year, month] = b.date.split('-');
-      const now = new Date();
-      if (Number(year) !== now.getFullYear() || Number(month) !== (now.getMonth() + 1)) return false;
+      const todayStr = getTodayBrasiliaStr();
+      const [currYear, currMonth] = todayStr.split('-');
+      if (year !== currYear || month !== currMonth) return false;
     }
 
     // 2. Filtro de Status
