@@ -8,6 +8,7 @@ const SUPABASE_MIGRATION_SQL = `-- 1. Criar tabela de configurações da barbear
 create table if not exists barber_settings (
   id text primary key,
   user_id uuid references auth.users(id) on delete cascade,
+  slug text unique,
   name text not null,
   address text not null,
   phone text not null,
@@ -21,6 +22,7 @@ create table if not exists barber_settings (
 
 -- Forçar que exista uma coluna user_id e chave estrangeira em todas as tabelas
 alter table if exists barber_settings add column if not exists user_id uuid references auth.users(id) on delete cascade;
+alter table if exists barber_settings add column if not exists slug text unique;
 
 -- 2. Criar tabela de serviços
 create table if not exists services (
@@ -147,6 +149,7 @@ interface ConfigProps {
 export default function AdminConfig({ settings, onUpdateSettings }: ConfigProps) {
   const [formData, setFormData] = useState<BarberSettings>({
     name: settings?.name || '',
+    slug: settings?.slug || '',
     address: settings?.address || '',
     phone: settings?.phone || '',
     logoUrl: settings?.logoUrl || '',
@@ -161,12 +164,13 @@ export default function AdminConfig({ settings, onUpdateSettings }: ConfigProps)
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showMigrationSql, setShowMigrationSql] = useState(false);
   const [copied, setCopied] = useState(false);
-
+ 
   // Sincroniza o estado do formulário se as configurações forem recarregadas no componente pai
   useEffect(() => {
     if (settings) {
       setFormData({
         name: settings.name || '',
+        slug: settings.slug || '',
         address: settings.address || '',
         phone: settings.phone || '',
         logoUrl: settings.logoUrl || '',
@@ -232,6 +236,37 @@ export default function AdminConfig({ settings, onUpdateSettings }: ConfigProps)
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               className="bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 w-full text-sm text-white focus:outline-none focus:border-amber-500/50"
             />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs text-zinc-400 block font-medium flex items-center justify-between">
+              <span>Slug para Link de Agendamento (slug) *</span>
+              <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Letras, números e hífens</span>
+            </label>
+            <div className="flex rounded-xl bg-zinc-950 border border-zinc-800 focus-within:border-amber-500/50 overflow-hidden">
+              <span className="text-xs px-3 py-2 bg-zinc-900 border-r border-zinc-800 text-zinc-500 flex items-center select-none font-sans">
+                /agendar/
+              </span>
+              <input
+                type="text"
+                required
+                value={formData.slug || ''}
+                onChange={(e) => {
+                  const cleaned = e.target.value
+                    .toLowerCase()
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .replace(/[^a-z0-9-]/g, '')
+                    .replace(/\s+/g, '-');
+                  setFormData({ ...formData, slug: cleaned });
+                }}
+                className="px-3 py-2 bg-transparent w-full text-sm text-white focus:outline-none"
+                placeholder="Ex: vander"
+              />
+            </div>
+            <p className="text-[10px] text-zinc-500 font-sans mt-0.5">
+              O seu link público de agendamento será: <span className="text-amber-500 font-mono select-all">{window.location.origin}/agendar/{formData.slug || 'slug'}</span>
+            </p>
           </div>
 
           <div className="space-y-1">

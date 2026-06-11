@@ -137,7 +137,7 @@ export default function App() {
       let targetBarberUserId: string | null = null;
 
       if (slugOrId && slugOrId !== "" && !path.includes('/admin')) {
-        // Busca a barbearia específica dona do link público
+        // Busca a barbearia específica dona do link público por seu slug
         const barberData = await dbStore.getSettingsBySlugOrId(slugOrId);
         if (barberData) {
           activeSettings = barberData;
@@ -151,38 +151,21 @@ export default function App() {
           setIsLoading(false);
           return;
         }
-      } else {
-        // Modo Administrativo ou Rota Geral: Carrega do admin logado
+      } else if (path.includes('/admin')) {
+        // Modo Administrativo: Carrega as configurações do admin logado
         const settsData = await dbStore.getSettings();
         if (settsData) {
           activeSettings = settsData;
           targetBarberUserId = settsData.userId || null;
           activeServices = await dbStore.getServices();
-        } else if (!path.includes('/admin') && isSupabaseEnabled && supabase) {
-          // Busca a primeira barbearia cadastrada no banco para usar como default pública
-          try {
-            const { data } = await supabase.from('barber_settings').select('*').limit(1).maybeSingle();
-            if (data) {
-              const mapped = {
-                userId: data.user_id,
-                name: data.name || '',
-                address: data.address || '',
-                phone: data.phone || '',
-                logoUrl: data.logo_url || '',
-                startHour: data.start_hour || '08:00',
-                endHour: data.end_hour || '20:00',
-                workingDays: data.working_days || [1, 2, 3, 4, 5, 6],
-                barbers: data.barbers || [],
-                adminName: data.admin_name || 'Ricardo'
-              };
-              activeSettings = mapped;
-              targetBarberUserId = data.user_id;
-              activeServices = await dbStore.getServices(targetBarberUserId);
-            }
-          } catch (e) {
-            console.warn("Could not load public fallback profile:", e);
-          }
         }
+      } else {
+        // Acesso público sem slug (ex: `/` ou `/agendar` sem identificador)
+        setSettings(null);
+        setServices([]);
+        setCurrentBarberUserId(null);
+        setIsLoading(false);
+        return;
       }
 
       setSettings(activeSettings);
@@ -493,15 +476,54 @@ export default function App() {
   };
 
   // --- CARREGADOR LOADING SPINNER SKELETON ---
-  if (isLoading || !settings) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center p-6 font-sans">
         <div className="relative mb-4 flex items-center justify-center">
           <div className="absolute animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-amber-500"></div>
           <Scissors className="h-6 w-6 text-amber-500 transform -rotate-45 animate-pulse" />
         </div>
-        <h4 className="text-sm font-bold font-sans tracking-tight uppercase text-zinc-350">Carregando Agenda Inteligente...</h4>
-        <p className="text-xs text-zinc-550 mt-1">Conectando ao banco de dados e sincronizando tabelas de faturamento.</p>
+        <h4 className="text-sm font-bold font-sans tracking-tight uppercase text-zinc-350">Carregando Agenda...</h4>
+        <p className="text-xs text-zinc-550 mt-1">Conectando ao banco de dados e sincronizando tabelas.</p>
+      </div>
+    );
+  }
+
+  // Se não estiver carregando, mas as configurações não existirem e o usuário NÃO estiver acessando o painel administrativo
+  if (!settings && currentView !== 'admin') {
+    return (
+      <div className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center p-6 font-sans select-none">
+        <div className="max-w-md w-full text-center space-y-6 bg-zinc-900/30 border border-white/[0.03] p-8 rounded-3xl shadow-2xl relative overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-red-500/5 via-transparent to-transparent pointer-events-none"></div>
+          
+          <div className="mx-auto bg-red-500/10 text-red-500 p-4 rounded-2xl border border-red-500/15 w-fit">
+            <AlertCircle className="h-8 w-8 animate-bounce" />
+          </div>
+          
+          <div className="space-y-2">
+            <h2 className="text-xl font-bold font-display text-white tracking-tight">Barbearia não encontrada</h2>
+            <p className="text-sm text-zinc-400 leading-relaxed font-sans">
+              O link que você tentou acessar não pertence a nenhuma barbearia cadastrada ou o perfil foi temporariamente desativado.
+            </p>
+          </div>
+
+          <div className="pt-2">
+            <a 
+              href="/admin" 
+              onClick={(e) => {
+                e.preventDefault();
+                navigateToView('admin');
+              }}
+              className="inline-flex w-full items-center justify-center bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-300 hover:text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer"
+            >
+              Acessar Painel Administrativo
+            </a>
+          </div>
+          
+          <div className="text-[10px] text-zinc-600 font-mono">
+            Código de Erro: BARBERSHOP_NOT_FOUND
+          </div>
+        </div>
       </div>
     );
   }

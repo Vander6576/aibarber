@@ -34,6 +34,7 @@ async function getAdminUserId(): Promise<string | null> {
 function mapSettingsFromDb(data: any): BarberSettings {
   return {
     userId: data.user_id,
+    slug: data.slug || '',
     name: data.name || '',
     address: data.address || '',
     phone: data.phone || '',
@@ -47,9 +48,17 @@ function mapSettingsFromDb(data: any): BarberSettings {
 }
 
 function mapSettingsToDb(data: BarberSettings, userId: string): any {
+  const rawIdentifier = data.slug || data.adminName || data.name || "barbearia";
+  const formattedSlug = rawIdentifier.trim().toLowerCase()
+    .normalize('NFD') // remove accents
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-');
+
   return {
     id: userId, // Utiliza o próprio user_id do administrador como ID único de sua barbearia
     user_id: userId,
+    slug: data.slug || formattedSlug,
     name: data.name,
     address: data.address,
     phone: data.phone,
@@ -233,8 +242,15 @@ export const dbStore = {
           // Se for o Admin logado e não possuir configurações, cria uma linha nova e real no banco de dados para ele!
           const { data: { user } } = await supabase.auth.getUser();
           if (user && user.id === userId) {
+            const cleanEmailName = (user.email?.split('@')[0] || "Administrador")
+              .toLowerCase()
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .replace(/[^a-z0-9]/g, '-');
+            
             const defaultNewSettings: BarberSettings = {
               name: "Minha Barbearia",
+              slug: cleanEmailName || "barbearia",
               address: "Adicione seu endereço",
               phone: "(99) 99999-9999",
               logoUrl: "",
@@ -271,8 +287,9 @@ export const dbStore = {
         if (isUuid) {
           query = query.eq('user_id', slugOrId);
         } else {
-          // Busca case-insensitive por admin_name ou name
-          query = query.or(`admin_name.ilike.%${slugOrId}%,name.ilike.%${slugOrId}%`);
+          const cleanSlugStr = slugOrId.trim().toLowerCase();
+          // Match exact slug first, or fall back to ilike comparisons on admin_name or name
+          query = query.or(`slug.eq.${cleanSlugStr},slug.eq.${slugOrId},admin_name.ilike.%${slugOrId}%,name.ilike.%${slugOrId}%`);
         }
         
         const { data, error } = await query.limit(1).maybeSingle();

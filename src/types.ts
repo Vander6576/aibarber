@@ -50,6 +50,7 @@ export interface Transaction {
 
 export interface BarberSettings {
   userId?: string;
+  slug?: string;
   name: string;
   address: string;
   phone: string;
