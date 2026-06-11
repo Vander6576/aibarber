@@ -288,17 +288,16 @@ export const dbStore = {
 
   // Busca configurações de um barbeiro específico por slug (nome administrativo) ou user_id
   async getSettingsBySlugOrId(slugOrId: string): Promise<(BarberSettings & { user_id: string }) | null> {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(slugOrId);
+    
     if (isSupabaseActive()) {
       try {
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(slugOrId);
-        
         let query = supabase.from('barber_settings').select('*');
         if (isUuid) {
           query = query.eq('user_id', slugOrId);
         } else {
           const cleanSlugStr = slugOrId.trim().toLowerCase();
-          // Match exact slug first, or fall back to ilike comparisons on admin_name or name
-          query = query.or(`slug.eq.${cleanSlugStr},slug.eq.${slugOrId},admin_name.ilike.%${slugOrId}%,name.ilike.%${slugOrId}%`);
+          query = query.eq('slug', cleanSlugStr);
         }
         
         const { data, error } = await query.limit(1).maybeSingle();
@@ -310,8 +309,10 @@ export const dbStore = {
             user_id: data.user_id
           };
         }
+        return null;
       } catch (error) {
         console.error("Erro ao buscar barbearia pública:", error);
+        return null;
       }
     }
     const local = localStorage.getItem('barber_settings');
@@ -322,39 +323,11 @@ export const dbStore = {
       if (cleanSlug === cleanInput || cleanInput === 'barbearia' || cleanInput === 'demo') {
         return {
           ...parsed,
-          user_id: 'local-demo-user-id'
-        };
-      } else {
-        // Fallback dinâmico em Sandbox mode para qualquer slug digitado (ex: vander)
-        const capitalized = slugOrId.charAt(0).toUpperCase() + slugOrId.slice(1);
-        return {
-          ...parsed,
-          name: parsed.name === "Minha Barbearia" || parsed.name === "" ? `Barbearia ${capitalized}` : parsed.name,
-          slug: slugOrId,
-          user_id: 'local-demo-user-id'
+          user_id: '11111111-1111-4111-8111-111111111111'
         };
       }
-    } else {
-      // Se não houver configurações no localStorage, inicializa uma e retorna
-      const capitalized = slugOrId.charAt(0).toUpperCase() + slugOrId.slice(1);
-      const initSettings = {
-        name: `Barbearia ${capitalized}`,
-        slug: slugOrId,
-        address: "Av. Paulista, 1000 - Bela Vista, São Paulo",
-        phone: "(11) 98888-7777",
-        logoUrl: "",
-        startHour: "08:00",
-        endHour: "20:00",
-        workingDays: [1, 2, 3, 4, 5, 6],
-        barbers: ["Carlos", "Thiago", "Marcos"],
-        adminName: capitalized
-      };
-      localStorage.setItem('barber_settings', JSON.stringify(initSettings));
-      return {
-        ...initSettings,
-        user_id: 'local-demo-user-id'
-      };
     }
+    return null;
   },
 
   async updateSettings(settings: BarberSettings): Promise<void> {
@@ -574,7 +547,41 @@ export const dbStore = {
     if (!userId) {
       userId = await getAdminUserId();
     }
-    if (!userId) throw new Error("Ação não permitida: Identificação da barbearia ausente.");
+    
+    // LOGS REQUISITADOS (TÓPICO 7)
+    console.log(`[DEBUG LOG / AGENDAMENTO] slug recebido na criação: ${booking.notes || "N/A"}`);
+    console.log(`[DEBUG LOG / AGENDAMENTO] user_id recebido/encontrado: ${userId}`);
+
+    if (isSupabaseActive()) {
+      // 1. Validar se o user_id é um UUID válido no padrão RFC4122 para evitar erro "22P02 invalid input syntax for uuid"
+      const isUuidValid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId || '');
+      if (!isUuidValid) {
+        console.error(`[DEBUG LOG / AGENDAMENTO] erro RLS ou FK: user_id inválido (${userId})`);
+        throw new Error("Agendamento inválido: O identificador da barbearia expirou ou é inválido.");
+      }
+
+      // 2. Verificar se o user_id existe na tabela barber_settings (que garante existência em auth.users por chave estrangeira)
+      const { data: hasSettings, error: chkError } = await supabase
+        .from('barber_settings')
+        .select('user_id, slug, name')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (chkError) {
+        console.error("[DEBUG LOG / AGENDAMENTO] Erro ao autenticar integridade do Administrador no Supabase:", chkError);
+        throw new Error("Erro de conexão ao validar o administrador da barbearia.");
+      }
+
+      if (!hasSettings || !hasSettings.user_id) {
+        console.error(`[DEBUG LOG / AGENDAMENTO] erro FK: user_id ${userId} inexistente em auth.users/barber_settings`);
+        throw new Error("A barbearia correspondente não possui um cadastro ativo ou válido.");
+      }
+
+      console.log(`[DEBUG LOG / AGENDAMENTO] barber_settings encontrado no Supabase:`, hasSettings);
+      console.log(`[DEBUG LOG / AGENDAMENTO] user_id validado com sucesso na tabela auth.users!`);
+    } else {
+      if (!userId) throw new Error("Ação não permitida: Identificação da barbearia ausente.");
+    }
 
     // --- REGRAS DE NEGÓCIO E VALIDAÇÕES MULTIUSUÁRIO ---
     const settings = await this.getSettings(userId);
@@ -633,10 +640,18 @@ export const dbStore = {
     if (isSupabaseActive()) {
       try {
         const payload = mapBookingToDb(newBooking, userId);
+        console.log(`[DEBUG LOG / AGENDAMENTO] payload enviado ao Supabase:`, payload);
+        
         const { error } = await supabase
           .from('bookings')
           .insert([payload]);
-        if (error) throw error;
+          
+        console.log(`[DEBUG LOG / AGENDAMENTO] Resposta completa do Supabase de agendamento (erro se houver):`, error);
+        
+        if (error) {
+          console.error(`[DEBUG LOG / AGENDAMENTO] Erro real retornado pelo Supabase:`, error);
+          throw error;
+        }
 
         // Se estiver concluído, insere transação de receita única
         if (newBooking.status === 'concluido' && newBooking.paymentMethod) {

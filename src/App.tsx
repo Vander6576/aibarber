@@ -176,7 +176,7 @@ export default function App() {
             barbers: ["Carlos", "Thiago", "Marcos"],
             adminName: "Administrador"
           };
-          targetBarberUserId = "local-demo-user-id";
+          targetBarberUserId = "11111111-1111-4111-8111-111111111111";
           activeServices = [];
         }
       } else {
