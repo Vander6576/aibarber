@@ -13,6 +13,19 @@ async function startServer() {
       appType: "spa",
     });
     app.use(vite.middlewares);
+
+    // Tratamento de fallback para rotas SPA em desenvolvimento (ex: /agendar/vander)
+    app.get('*', async (req, res, next) => {
+      const url = req.originalUrl;
+      try {
+        const fs = await import('fs');
+        let template = fs.readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf-8');
+        template = await vite.transformIndexHtml(url, template);
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
+      } catch (e) {
+        next(e);
+      }
+    });
   } else {
     // Em produção, serve os arquivos estáticos compilados da pasta dist
     const distPath = path.join(process.cwd(), 'dist');
