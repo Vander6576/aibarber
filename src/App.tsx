@@ -527,34 +527,51 @@ export default function App() {
   if (!settings && currentView !== 'admin') {
     return (
       <div className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center p-6 font-sans select-none">
-        <div className="max-w-md w-full text-center space-y-6 bg-zinc-900/30 border border-white/[0.03] p-8 rounded-3xl shadow-2xl relative overflow-hidden">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-red-500/5 via-transparent to-transparent pointer-events-none"></div>
+        <div className="max-w-md w-full space-y-6 bg-zinc-900/30 border border-white/[0.03] p-8 rounded-3xl shadow-2xl relative overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-500/5 via-transparent to-transparent pointer-events-none"></div>
           
-          <div className="mx-auto bg-red-500/10 text-red-500 p-4 rounded-2xl border border-red-500/15 w-fit">
-            <AlertCircle className="h-8 w-8 animate-bounce" />
+          <div className="mx-auto bg-amber-500/10 text-amber-500 p-4 rounded-2xl border border-amber-500/15 w-fit flex items-center justify-center">
+            <Scissors className="h-8 w-8 transform -rotate-45" />
           </div>
           
-          <div className="space-y-2">
+          <div className="space-y-2 text-center">
             <h2 className="text-xl font-bold font-display text-white tracking-tight">Barbearia não encontrada</h2>
-            <p className="text-sm text-zinc-400 leading-relaxed font-sans">
-              O link que você tentou acessar não pertence a nenhuma barbearia cadastrada ou o perfil foi temporariamente desativado.
+            <p className="text-xs text-zinc-400 leading-relaxed font-sans">
+              Não localizamos uma barbearia associada a este link.
             </p>
           </div>
 
-          <div className="pt-2">
-            <a 
-              href="/admin" 
-              onClick={(e) => {
-                e.preventDefault();
-                navigateToView('admin');
-              }}
-              className="inline-flex w-full items-center justify-center bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-300 hover:text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer"
+          <div className="space-y-4 border-t border-b border-zinc-850 py-4 text-[12px] leading-relaxed">
+            <div className="space-y-1 bg-zinc-950/40 p-3.5 rounded-2xl border border-zinc-900">
+              <span className="text-zinc-400 font-bold block">Já possui acesso ao sistema?</span>
+              <span className="text-amber-500 font-medium font-sans block">→ Faça login na sua conta.</span>
+            </div>
+            
+            <div className="space-y-1 bg-zinc-950/40 p-3.5 rounded-2xl border border-zinc-900">
+              <span className="text-zinc-400 font-bold block">Deseja contratar o sistema para sua barbearia?</span>
+              <span className="text-amber-500 font-medium font-sans block">→ Entre em contato conosco.</span>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <button 
+              onClick={() => navigateToView('admin')}
+              className="inline-flex w-full items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-zinc-950 px-4 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md"
             >
-              Acessar Painel Administrativo
+              <LogIn className="h-4 w-4" /> Fazer Login
+            </button>
+
+            <a 
+              href="https://wa.me/5521990206536"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex w-full items-center justify-center gap-2 bg-zinc-950 hover:bg-zinc-900 border border-zinc-850 text-zinc-300 hover:text-white px-4 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer"
+            >
+              <Phone className="h-4 w-4 text-green-500" /> Falar no Suporte WhatsApp: 21990206536
             </a>
           </div>
           
-          <div className="text-[10px] text-zinc-600 font-mono">
+          <div className="text-center text-[10px] text-zinc-600 font-mono">
             Código de Erro: BARBERSHOP_NOT_FOUND
           </div>
         </div>
