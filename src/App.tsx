@@ -562,7 +562,7 @@ export default function App() {
             </button>
 
             <a 
-              href="https://wa.me/5521990206536"
+              href="https://wa.me/5521990206536?text=Ol%C3%A1%21%20Gostaria%20de%20conhecer%20o%20sistema%20para%20minha%20barbearia."
               target="_blank"
               rel="noreferrer"
               className="inline-flex w-full items-center justify-center gap-2 bg-zinc-950 hover:bg-zinc-900 border border-zinc-850 text-zinc-300 hover:text-white px-4 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer"
