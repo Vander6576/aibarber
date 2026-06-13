@@ -3,6 +3,7 @@ import { Service, Booking, BarberSettings } from '../types';
 import { dbStore } from '../dbStore';
 import { Calendar, Clock, User, Phone, Check, ChevronRight, Search, Sparkles, MapPin, MessageSquare, AlertCircle, Trash2, Scissors, X } from 'lucide-react';
 import { motion } from 'motion/react';
+import { getDirectImageUrl } from '../utils/image';
 
 interface PublicAreaProps {
   services: Service[];
@@ -272,9 +273,31 @@ export default function PublicClientArea({ services, bookings, settings, onAddBo
         <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl pointer-events-none"></div>
         <div className="absolute bottom-0 left-0 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl pointer-events-none"></div>
         
-        <div className="mx-auto bg-amber-500 text-black p-3.5 rounded-full w-fit mb-3 border-4 border-[#121212] shadow-md">
-          <Scissors className="h-6 w-6 transform -rotate-45" />
-        </div>
+        {settings.logoUrl ? (
+          <div className="mx-auto mb-3 border-4 border-zinc-800 shadow-md rounded-full w-24 h-24 overflow-hidden flex items-center justify-center bg-zinc-950 relative group">
+            <img
+              src={getDirectImageUrl(settings.logoUrl)}
+              alt={settings.name}
+              className="w-full h-full object-cover rounded-full"
+              referrerPolicy="no-referrer"
+              onError={(e) => {
+                (e.target as any).style.display = 'none';
+                const parent = (e.currentTarget as HTMLElement).parentElement;
+                if (parent) {
+                  const fallback = parent.querySelector('.logo-fallback-icon');
+                  if (fallback) fallback.classList.remove('hidden');
+                }
+              }}
+            />
+            <div className="logo-fallback-icon hidden absolute inset-0 flex items-center justify-center bg-amber-500 text-black">
+              <Scissors className="h-8 w-8 transform -rotate-45" />
+            </div>
+          </div>
+        ) : (
+          <div className="mx-auto bg-amber-500 text-black p-3.5 rounded-full w-fit mb-3 border-4 border-[#121212] shadow-md">
+            <Scissors className="h-6 w-6 transform -rotate-45" />
+          </div>
+        )}
 
         <h1 className="text-2xl font-display font-bold tracking-tight text-white">{settings.name}</h1>
         <p className="text-xs text-zinc-400 mt-1 max-w-sm mx-auto">{settings.address}</p>

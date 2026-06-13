@@ -3,6 +3,7 @@ import { BarberSettings } from '../types';
 import { dbStore } from '../dbStore';
 import { Settings, HelpCircle, Shield, RotateCcw, AlertTriangle, Cloud, CloudOff, Save, Check, Database, Copy, Loader2, AlertCircle } from 'lucide-react';
 import { isSupabaseEnabled } from '../supabase';
+import { getDirectImageUrl } from '../utils/image';
 
 const SUPABASE_MIGRATION_SQL = `-- 1. Criar tabela de configurações da barbearia (com relacionamento user_id com auth.users)
 create table if not exists barber_settings (
@@ -293,7 +294,7 @@ export default function AdminConfig({ settings, onUpdateSettings }: ConfigProps)
             {formData.logoUrl && (
               <div className="mt-2 flex items-center gap-3 bg-zinc-950 p-2.5 rounded-xl border border-zinc-850 max-w-fit">
                 <img
-                  src={formData.logoUrl}
+                  src={getDirectImageUrl(formData.logoUrl)}
                   alt="Prévia da Logo"
                   className="h-10 w-10 rounded-lg object-cover border border-white/10"
                   onError={(e) => {
