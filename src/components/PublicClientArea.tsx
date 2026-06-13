@@ -25,6 +25,7 @@ export default function PublicClientArea({ services, bookings, settings, onAddBo
   const [customerWhatsApp, setCustomerWhatsApp] = useState("");
   const [bookingNotes, setBookingNotes] = useState("");
   const [selectedBarber, setSelectedBarber] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<'pix' | 'dinheiro' | 'cartao_credito' | 'cartao_debito'>('pix');
   const [successBooking, setSuccessBooking] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -75,6 +76,7 @@ export default function PublicClientArea({ services, bookings, settings, onAddBo
     setCustomerWhatsApp("");
     setBookingNotes("");
     setSelectedBarber("");
+    setPaymentMethod('pix');
     setSuccessBooking(null);
   };
 
@@ -207,6 +209,7 @@ export default function PublicClientArea({ services, bookings, settings, onAddBo
         time: selectedTime,
         status: 'agendado',
         notes: bookingNotes,
+        paymentMethod: paymentMethod,
         barberName: selectedBarber || (settings.barbers?.[0] || 'Qualquer Barbeiro')
       });
       
@@ -580,6 +583,56 @@ export default function PublicClientArea({ services, bookings, settings, onAddBo
                         </div>
                       </div>
 
+                      <div className="space-y-2.5 bg-zinc-955 p-3 rounded-2xl border border-zinc-900">
+                        <label className="text-xs text-zinc-400 block font-medium">Forma de Pagamento Pretendida *</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setPaymentMethod('pix')}
+                            className={`py-2 px-3 rounded-xl border text-xs font-medium flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                              paymentMethod === 'pix'
+                                ? 'bg-amber-500/10 border-amber-500 text-amber-500 font-bold'
+                                : 'bg-zinc-950 border-zinc-850 text-zinc-400 hover:text-white hover:border-zinc-700'
+                            }`}
+                          >
+                            <span className="w-2 h-2 rounded-full bg-teal-400 shrink-0"></span> PIX
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPaymentMethod('dinheiro')}
+                            className={`py-2 px-3 rounded-xl border text-xs font-medium flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                              paymentMethod === 'dinheiro'
+                                ? 'bg-amber-500/10 border-amber-500 text-amber-500 font-bold'
+                                : 'bg-zinc-950 border-zinc-850 text-zinc-400 hover:text-white hover:border-zinc-700'
+                            }`}
+                          >
+                            <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span> Dinheiro
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPaymentMethod('cartao_credito')}
+                            className={`py-2 px-3 rounded-xl border text-xs font-medium flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                              paymentMethod === 'cartao_credito'
+                                ? 'bg-amber-500/10 border-amber-500 text-amber-500 font-bold'
+                                : 'bg-zinc-950 border-zinc-850 text-zinc-400 hover:text-white hover:border-zinc-700'
+                            }`}
+                          >
+                            <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0"></span> Crédito
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPaymentMethod('cartao_debito')}
+                            className={`py-2 px-3 rounded-xl border text-xs font-medium flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                              paymentMethod === 'cartao_debito'
+                                ? 'bg-amber-500/10 border-amber-500 text-amber-500 font-bold'
+                                : 'bg-zinc-950 border-zinc-850 text-zinc-400 hover:text-white hover:border-zinc-700'
+                            }`}
+                          >
+                            <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0"></span> Débito
+                          </button>
+                        </div>
+                      </div>
+
                       <div className="space-y-1">
                         <label className="text-xs text-zinc-500 block font-sans">Algum recado para o barbeiro? (Opcional)</label>
                         <textarea
@@ -641,6 +694,18 @@ export default function PublicClientArea({ services, bookings, settings, onAddBo
                         <span className="text-zinc-500 block text-[10px] uppercase font-sans">Profissional (Barbeiro):</span>
                         <strong className="text-white text-xs block mt-0.5">✂️ {successBooking.barberName || "Qualquer Barbeiro"}</strong>
                       </div>
+
+                      {successBooking.paymentMethod && (
+                        <div className="border-t border-zinc-900 pt-2">
+                          <span className="text-zinc-500 block text-[10px] uppercase font-sans">Forma de Pagamento Pretendida:</span>
+                          <strong className="text-amber-500 text-xs block mt-0.5 font-sans">
+                            {successBooking.paymentMethod === 'pix' && '⚡ PIX'}
+                            {successBooking.paymentMethod === 'dinheiro' && '💵 Dinheiro em Espécie'}
+                            {successBooking.paymentMethod === 'cartao_credito' && '💳 Cartão de Crédito'}
+                            {successBooking.paymentMethod === 'cartao_debito' && '💳 Cartão de Débito'}
+                          </strong>
+                        </div>
+                      )}
 
                       <div className="flex items-start gap-2 text-[10px] text-zinc-400 border-t border-zinc-900 pt-2">
                         <MapPin className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />

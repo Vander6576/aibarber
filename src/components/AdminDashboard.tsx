@@ -127,11 +127,11 @@ export default function AdminDashboard({ bookings, clients, transactions, servic
   // Dados de transações recentes de hoje para micro-gráfico
   const todayTx = transactions.filter(t => t.date === todayStr && t.type === 'receita');
   const countOfPix = todayTx.filter(t => t.paymentMethod === 'pix').length;
-  const countOfCard = todayTx.filter(t => t.paymentMethod === 'cartao').length;
+  const countOfCard = todayTx.filter(t => t.paymentMethod === 'cartao' || t.paymentMethod === 'cartao_debito' || t.paymentMethod === 'cartao_credito').length;
   const countOfCash = todayTx.filter(t => t.paymentMethod === 'dinheiro').length;
 
   const totalPix = todayTx.filter(t => t.paymentMethod === 'pix').reduce((s, c) => s + c.amount, 0);
-  const totalCard = todayTx.filter(t => t.paymentMethod === 'cartao').reduce((s, c) => s + c.amount, 0);
+  const totalCard = todayTx.filter(t => t.paymentMethod === 'cartao' || t.paymentMethod === 'cartao_debito' || t.paymentMethod === 'cartao_credito').reduce((s, c) => s + c.amount, 0);
   const totalCash = todayTx.filter(t => t.paymentMethod === 'dinheiro').reduce((s, c) => s + c.amount, 0);
 
   // Clientes adicionados este mês

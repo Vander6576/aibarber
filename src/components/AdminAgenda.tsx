@@ -30,6 +30,19 @@ export default function AdminAgenda({
   const [selectedTimeSlot, setSelectedTimeSlot] = useState("");
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
 
+  // States for Editing/Modifying Bookings
+  const [isEditing, setIsEditing] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    clientName: "",
+    clientWhatsApp: "",
+    date: "",
+    time: "",
+    serviceId: "",
+    notes: "",
+    barberName: "",
+    servicePrice: 0
+  });
+
   // Filtros avançados
   const [filterPeriod, setFilterPeriod] = useState<'dia' | 'hoje' | 'amanha' | 'semana' | 'mes' | 'todos'>('dia');
   const [filterStatus, setFilterStatus] = useState<string>('todos');
@@ -68,6 +81,17 @@ export default function AdminAgenda({
   // Abre modal de detalhes/edição rápida
   const handleOpenDetails = (booking: Booking) => {
     setSelectedBooking(booking);
+    setEditFormData({
+      clientName: booking.clientName,
+      clientWhatsApp: booking.clientWhatsApp,
+      date: booking.date,
+      time: booking.time,
+      serviceId: booking.serviceId || "",
+      notes: booking.notes || "",
+      barberName: booking.barberName || "Qualquer Barbeiro",
+      servicePrice: booking.servicePrice
+    });
+    setIsEditing(false);
     setShowDetailsModal(true);
   };
 
@@ -99,6 +123,53 @@ export default function AdminAgenda({
       setShowAddModal(false);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  // Salvar edições do agendamento (nome, whatsapp, data, hora, serviço, preço, barbeiro, observações)
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedBooking) return;
+
+    if (!editFormData.clientName || !editFormData.clientWhatsApp || !editFormData.date || !editFormData.time) {
+      alert("Por favor preencha nome, whatsapp, data e horário!");
+      return;
+    }
+
+    const selectedService = services.find(s => s.id === editFormData.serviceId);
+    const serviceName = selectedService ? selectedService.name : selectedBooking.serviceName;
+
+    try {
+      await onUpdateBooking(selectedBooking.id, {
+        clientName: editFormData.clientName,
+        clientWhatsApp: editFormData.clientWhatsApp,
+        date: editFormData.date,
+        time: editFormData.time,
+        serviceId: editFormData.serviceId,
+        serviceName: serviceName,
+        servicePrice: editFormData.servicePrice,
+        barberName: editFormData.barberName,
+        notes: editFormData.notes
+      });
+
+      setSelectedBooking(prev => prev ? {
+        ...prev,
+        clientName: editFormData.clientName,
+        clientWhatsApp: editFormData.clientWhatsApp,
+        date: editFormData.date,
+        time: editFormData.time,
+        serviceId: editFormData.serviceId,
+        serviceName: serviceName,
+        servicePrice: editFormData.servicePrice,
+        barberName: editFormData.barberName,
+        notes: editFormData.notes
+      } : null);
+
+      setIsEditing(false);
+      alert("Agendamento completo atualizado com sucesso!");
+    } catch (err) {
+      console.error(err);
+      alert("Houve um problema ao atualizar o agendamento.");
     }
   };
 
@@ -784,39 +855,179 @@ export default function AdminAgenda({
             </div>
 
             <div className="p-5 space-y-4 font-sans">
-              {/* Informações estáticas do agendamento */}
-              <div className="bg-zinc-950 border border-zinc-850 p-4 rounded-xl space-y-2">
-                <div className="flex justify-between text-xs">
-                  <span className="text-zinc-500">Cliente</span>
-                  <span className="text-white font-bold">{selectedBooking.clientName}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-zinc-500">Contato (WhatsApp)</span>
-                  <span className="text-amber-400 font-mono">{selectedBooking.clientWhatsApp}</span>
-                </div>
-                <div className="flex justify-between text-xs border-t border-zinc-900 pt-2">
-                  <span className="text-zinc-500">Data e Horário</span>
-                  <span className="text-white font-mono">{selectedBooking.date} às {selectedBooking.time}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-zinc-500">Serviço Solicitado</span>
-                  <span className="text-white font-semibold">{selectedBooking.serviceName}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-zinc-500">Barbeiro Designado</span>
-                  <span className="text-white font-semibold">✂... {selectedBooking.barberName || "Qualquer Barbeiro"}</span>
-                </div>
-                <div className="flex justify-between text-xs font-sans">
-                  <span className="text-zinc-500">Valor do Serviço</span>
-                  <span className="text-amber-500 font-mono font-bold">R$ {selectedBooking.servicePrice.toFixed(2)}</span>
-                </div>
-                {selectedBooking.notes && (
-                  <div className="border-t border-zinc-900 pt-2 text-xs">
-                    <span className="text-zinc-500 block">Observações do Cliente:</span>
-                    <p className="text-zinc-300 italic mt-0.5">"{selectedBooking.notes}"</p>
+              {/* Modo de Edição Ativo ou Visualização Estática */}
+              {isEditing ? (
+                <form onSubmit={handleSaveEdit} className="space-y-3.5 bg-zinc-950 border border-zinc-850 p-4 rounded-xl">
+                  <h4 className="text-xs font-bold text-amber-500 uppercase tracking-wider">Alterar Dados do Agendamento</h4>
+                  
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-zinc-400 block font-medium">Nome do Cliente *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editFormData.clientName}
+                      onChange={(e) => setEditFormData({ ...editFormData, clientName: e.target.value })}
+                      className="bg-zinc-900 border border-zinc-800 text-xs text-white px-3 py-2 w-full rounded-xl focus:outline-none focus:border-amber-500/50"
+                    />
                   </div>
-                )}
-              </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-zinc-400 block font-medium">WhatsApp / Contato *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editFormData.clientWhatsApp}
+                      onChange={(e) => setEditFormData({ ...editFormData, clientWhatsApp: e.target.value })}
+                      className="bg-zinc-900 border border-zinc-800 text-xs text-white px-3 py-2 w-full rounded-xl focus:outline-none focus:border-amber-500/50"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-zinc-400 block font-medium">Data *</label>
+                      <input
+                        type="date"
+                        required
+                        value={editFormData.date}
+                        onChange={(e) => setEditFormData({ ...editFormData, date: e.target.value })}
+                        className="bg-zinc-900 border border-zinc-850 text-xs text-white px-3 py-2 w-full rounded-xl focus:outline-none focus:border-amber-500/50"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-zinc-400 block font-medium">Horário *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="HH:MM"
+                        value={editFormData.time}
+                        onChange={(e) => setEditFormData({ ...editFormData, time: e.target.value })}
+                        className="bg-zinc-900 border border-zinc-850 text-xs text-white px-3 py-2 w-full rounded-xl focus:outline-none focus:border-amber-500/50 font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-zinc-400 block font-medium">Serviço Solicitado *</label>
+                    <select
+                      value={editFormData.serviceId}
+                      onChange={(e) => {
+                        const srvId = e.target.value;
+                        const srv = services.find(s => s.id === srvId);
+                        setEditFormData({
+                          ...editFormData,
+                          serviceId: srvId,
+                          servicePrice: srv ? srv.price : editFormData.servicePrice
+                        });
+                      }}
+                      className="bg-zinc-900 border border-zinc-800 text-xs text-white px-3 py-1.5 w-full rounded-xl focus:outline-none focus:border-amber-500/50 cursor-pointer"
+                    >
+                      <option value="">-- Selecione o Serviço --</option>
+                      {services.map(s => (
+                        <option key={s.id} value={s.id}>{s.name} (R$ {s.price.toFixed(2)})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-zinc-400 block font-medium">Preço (R$) *</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        required
+                        value={editFormData.servicePrice}
+                        onChange={(e) => setEditFormData({ ...editFormData, servicePrice: parseFloat(e.target.value) || 0 })}
+                        className="bg-zinc-900 border border-zinc-800 text-xs text-white px-3 py-2 w-full rounded-xl focus:outline-none focus:border-amber-500/50 font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-zinc-400 block font-medium">Profissional</label>
+                      <select
+                        value={editFormData.barberName}
+                        onChange={(e) => setEditFormData({ ...editFormData, barberName: e.target.value })}
+                        className="bg-zinc-900 border border-zinc-800 text-xs text-white px-3 py-2 w-full rounded-xl focus:outline-none focus:border-amber-500/50 cursor-pointer"
+                      >
+                        <option value="Qualquer Barbeiro">Qualquer Barbeiro</option>
+                        {(settings.barbers || []).map(b => (
+                          <option key={b} value={b}>{b}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-zinc-400 block font-medium">Observações do Atendimento</label>
+                    <textarea
+                      rows={2}
+                      value={editFormData.notes}
+                      onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
+                      placeholder="Sem observações..."
+                      className="bg-zinc-900 border border-zinc-800 text-xs text-white px-3 py-2 w-full rounded-xl focus:outline-none focus:border-amber-500/50"
+                    />
+                  </div>
+
+                  <div className="flex gap-2 justify-end pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setIsEditing(false)}
+                      className="bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 hover:text-white px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer"
+                    >
+                      Voltar
+                    </button>
+                    <button
+                      type="submit"
+                      className="bg-amber-500 hover:bg-amber-400 text-zinc-950 px-4 py-1.5 rounded-xl text-xs font-bold cursor-pointer"
+                    >
+                      Salvar Dados
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <>
+                  <div className="bg-zinc-950 border border-zinc-850 p-4 rounded-xl space-y-2">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-zinc-500">Cliente</span>
+                      <span className="text-white font-bold">{selectedBooking.clientName}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-zinc-500">Contato (WhatsApp)</span>
+                      <span className="text-amber-400 font-mono">{selectedBooking.clientWhatsApp}</span>
+                    </div>
+                    <div className="flex justify-between text-xs border-t border-zinc-900 pt-2">
+                      <span className="text-zinc-500">Data e Horário</span>
+                      <span className="text-white font-mono">{selectedBooking.date.split('-').reverse().join('/')} às {selectedBooking.time}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-zinc-500">Serviço Solicitado</span>
+                      <span className="text-white font-semibold">{selectedBooking.serviceName}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-zinc-500">Barbeiro Designado</span>
+                      <span className="text-white font-semibold">✂️ {selectedBooking.barberName || "Qualquer Barbeiro"}</span>
+                    </div>
+                    <div className="flex justify-between text-xs font-sans">
+                      <span className="text-zinc-500">Valor do Serviço</span>
+                      <span className="text-amber-500 font-mono font-bold">R$ {selectedBooking.servicePrice.toFixed(2)}</span>
+                    </div>
+                    {selectedBooking.notes && (
+                      <div className="border-t border-zinc-900 pt-2 text-xs">
+                        <span className="text-zinc-500 block">Observações do Cliente:</span>
+                        <p className="text-zinc-300 italic mt-0.5">"{selectedBooking.notes}"</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setIsEditing(true)}
+                      className="text-xs text-amber-500 hover:text-amber-400 hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      ✏️ Habilitar Edição dos Dados do Cliente/Data
+                    </button>
+                  </div>
+                </>
+              )}
 
               {/* Botões para WhatsApp imediato */}
               <div className="flex gap-2 justify-center py-1">

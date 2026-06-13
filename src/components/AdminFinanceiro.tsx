@@ -53,7 +53,7 @@ export default function AdminFinanceiro({ transactions, onAddTransaction, onDele
         inc += t.amount;
         if (t.paymentMethod === 'pix') pix += t.amount;
         else if (t.paymentMethod === 'dinheiro') mon += t.amount;
-        else if (t.paymentMethod === 'cartao') crd += t.amount;
+        else if (t.paymentMethod === 'cartao' || t.paymentMethod === 'cartao_debito' || t.paymentMethod === 'cartao_credito') crd += t.amount;
       } else {
         exp += t.amount;
       }

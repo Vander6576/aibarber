@@ -84,7 +84,7 @@ export default function AdminRelatorios({ bookings, clients, transactions, servi
 
   // Métodos de Pagamento (Faturamento total por método)
   const faturamentoPix = filteredTx.filter(t => t.type === 'receita' && t.paymentMethod === 'pix').reduce((s, t) => s + t.amount, 0);
-  const faturamentoCartao = filteredTx.filter(t => t.type === 'receita' && t.paymentMethod === 'cartao').reduce((s, t) => s + t.amount, 0);
+  const faturamentoCartao = filteredTx.filter(t => t.type === 'receita' && (t.paymentMethod === 'cartao' || t.paymentMethod === 'cartao_debito' || t.paymentMethod === 'cartao_credito')).reduce((s, t) => s + t.amount, 0);
   const faturamentoDinheiro = filteredTx.filter(t => t.type === 'receita' && t.paymentMethod === 'dinheiro').reduce((s, t) => s + t.amount, 0);
 
   // Serviços mais lucrativos
