@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { dbStore } from './dbStore';
 import { isSupabaseEnabled, supabase, isSupabaseOffline } from './supabase';
 import { Service, Booking, Client, Transaction, BarberSettings, ViewType, AdminTabType } from './types';
+import { getDirectImageUrl } from './utils/image';
 
 // Componentes da Área Administrativa
 import AdminDashboard from './components/AdminDashboard';
@@ -908,10 +909,44 @@ export default function App() {
               <aside className="hidden lg:block bg-[#121212] border border-[#ffffff07] rounded-3xl p-5 shadow-2xl space-y-6 h-fit w-full lg:w-72 flex-shrink-0" id="admin-sidebar-menu">
                 
                 {/* Active user header block */}
-                <div className="border-b border-zinc-905 pb-5 space-y-1">
-                  <span className="text-[9px] uppercase font-mono text-zinc-500 tracking-widest font-semibold">Conta Operacional</span>
-                  <h4 className="text-xs font-bold text-white truncate max-w-[240px] font-sans">{adminUser?.email || "Administrador Geral"}</h4>
-                  <div className="inline-flex items-center gap-1.5 pt-1.5">
+                <div className="border-b border-zinc-905 pb-5 space-y-3">
+                  {/* Premium Brand Avatar */}
+                  <div className="flex items-center gap-3">
+                    {settings?.logoUrl ? (
+                      <div className="relative w-12 h-12 rounded-full overflow-hidden border border-zinc-800 bg-zinc-950 flex items-center justify-center shrink-0 shadow-lg">
+                        <img 
+                          src={getDirectImageUrl(settings.logoUrl)} 
+                          alt="Avatar Barbearia" 
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            (e.target as any).style.display = 'none';
+                            const parent = (e.currentTarget as HTMLElement).parentElement;
+                            if (parent) {
+                              const fallback = parent.querySelector('.avatar-fallback');
+                              if (fallback) fallback.classList.remove('hidden');
+                            }
+                          }}
+                        />
+                        <div className="avatar-fallback hidden absolute inset-0 flex items-center justify-center bg-gradient-to-br from-amber-500/20 to-zinc-900 text-amber-500">
+                          <Scissors className="h-5 w-5 transform -rotate-45" />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="w-12 h-12 rounded-full overflow-hidden border border-zinc-800 bg-gradient-to-br from-amber-500/20 to-zinc-900 flex items-center justify-center shrink-0 shadow-lg text-amber-500">
+                        <Scissors className="h-5 w-5 transform -rotate-45" />
+                      </div>
+                    )}
+                    
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-[9px] uppercase font-mono text-zinc-500 tracking-widest font-semibold">Conta Operacional</span>
+                      <h4 className="text-xs font-bold text-white truncate max-w-[170px] font-sans" title={adminUser?.email || "Administrador Geral"}>
+                        {adminUser?.email || "Administrador Geral"}
+                      </h4>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 pt-1">
                     <span className="text-[9px] bg-zinc-955 border border-zinc-900 text-amber-500 px-2 py-0.5 rounded font-mono font-bold">Barbeiro Master</span>
                     
                      {/* Status Indicador para Nuvem */}
