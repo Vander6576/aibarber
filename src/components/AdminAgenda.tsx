@@ -29,6 +29,7 @@ export default function AdminAgenda({
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState("");
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [finalPayMethod, setFinalPayMethod] = useState<any>('pix');
 
   // States for Editing/Modifying Bookings
   const [isEditing, setIsEditing] = useState(false);
@@ -91,6 +92,7 @@ export default function AdminAgenda({
       barberName: booking.barberName || "Qualquer Barbeiro",
       servicePrice: booking.servicePrice
     });
+    setFinalPayMethod(booking.paymentMethod || 'pix');
     setIsEditing(false);
     setShowDetailsModal(true);
   };
@@ -1055,7 +1057,8 @@ export default function AdminAgenda({
                     <select
                       id="update-booking-paymethod-select"
                       className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 w-full text-xs text-white focus:outline-none focus:border-amber-500/50"
-                      defaultValue="pix"
+                      value={finalPayMethod}
+                      onChange={(e) => setFinalPayMethod(e.target.value)}
                     >
                       <option value="pix">Pix (Transf. Imediata)</option>
                       <option value="dinheiro">Dinheiro (Espécie)</option>
@@ -1069,9 +1072,7 @@ export default function AdminAgenda({
                       <button
                         type="button"
                         onClick={() => {
-                          const paySelect = document.getElementById('update-booking-paymethod-select') as HTMLSelectElement;
-                          const method = paySelect ? paySelect.value : 'pix';
-                          handleUpdateStatus('concluido', method);
+                          handleUpdateStatus('concluido', finalPayMethod);
                         }}
                         className="bg-emerald-500 hover:bg-emerald-400 text-zinc-950 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer"
                       >
